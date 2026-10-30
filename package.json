@@ -1,0 +1,41 @@
+{
+  "name": "@allisall/sdk",
+  "version": "0.1.0",
+  "description": "The allisall SDK for TypeScript and JavaScript: send events to the allisall API.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/All-is-AI/allisall-typescript.git"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "lint": "biome check . && tsc --noEmit -p tsconfig.json",
+    "test": "vitest run && npm run test:consumer",
+    "test:consumer": "tsc -p tsconfig.build.json && node test/consumer/extract-readme.mjs && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.bundler.json && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.node16.json && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.node-types.json"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.4",
+    "@types/node": "^22.20.5",
+    "typescript": "~5.9.3",
+    "typescript-5.0": "npm:typescript@5.0.4",
+    "vitest": "^4.1.10",
+    "yaml": "2.9.0"
+  }
+}

@@ -1,0 +1,80 @@
+# Publishes @allisall/sdk to npm when a version tag is pushed.
+#
+# Tags are pushed by the release automation only, and every publish waits
+# for approval on the npm environment.
+#
+# Authentication: when the npm environment holds an NPM_TOKEN secret, npm
+# uses it; when it does not, npm uses trusted publishing. npm tries trusted
+# publishing first and falls back to the token when no trusted publisher
+# accepts this workflow, so the same file serves both. Either way the
+# package is published with provenance.
+
+name: Publish
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          persist-credentials: false
+      - name: The tag is the package version
+        id: version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version package.json)
+          if [ "${TAG#v}" != "$version" ]; then
+            echo "::error::tag $TAG does not match package.json version $version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - name: npm with trusted publishing
+        # Trusted publishing needs npm 11.5.1 or later.
+        run: |
+          npm install -g npm@11.21.1
+          npm --version
+      - run: npm ci --ignore-scripts
+      - run: npm run build
+      - name: Already published?
+        id: published
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          if [ "$(npm view "@allisall/sdk@$VERSION" version 2>/dev/null)" = "$VERSION" ]; then
+            echo "@allisall/sdk $VERSION is already on npm"
+            echo "done=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Publish
+        if: steps.published.outputs.done != 'true'
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "$NPM_TOKEN" ]; then
+            # The token is read from the environment, never written out:
+            # npm expands ${NPM_TOKEN} in .npmrc itself.
+            # shellcheck disable=SC2016
+            printf '//registry.npmjs.org/:_authToken=${NPM_TOKEN}\n' > "$RUNNER_TEMP/.npmrc"
+            export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/.npmrc"
+          fi
+          npm publish --access public --provenance
