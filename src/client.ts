@@ -2,22 +2,37 @@
 // resolved at construction.
 
 import { AllisallError } from "./errors.js";
-import { ingest, readIngestResult } from "./ingest.js";
-import { isBrowser, readEnv, userAgent } from "./runtime.js";
+import {
+  DEFAULT_MAX_RETRIES,
+  DEFAULT_TIMEOUT_MS,
+  resolveHeaders,
+  resolveMaxRetries,
+  resolveTimeout,
+} from "./options.js";
+import { Agents } from "./resources/agents.js";
+import { Analytics } from "./resources/analytics.js";
+import { ApiKeys } from "./resources/api-keys.js";
+import { Calculations } from "./resources/calculations.js";
+import { Clients } from "./resources/clients.js";
+import { Cost } from "./resources/cost.js";
+import { DashboardOperations } from "./resources/dashboard.js";
+import { Events } from "./resources/events.js";
+import { HealthOperations } from "./resources/health.js";
+import { Imports } from "./resources/imports.js";
+import { OutcomeTypes } from "./resources/outcome-types.js";
+import { Reports } from "./resources/reports.js";
+import { ValueModels } from "./resources/value-models.js";
+import { globalValue, isBrowser, readEnv, userAgent } from "./runtime.js";
 import {
   BROWSER_KEY_MESSAGE,
   type Credential,
   type FetchLike,
   isPrintableCredential,
-  post,
   type TokenProvider,
   type TransportConfig,
 } from "./transport.js";
-import type { EventInput, IngestSummary } from "./types.js";
 
 const DEFAULT_BASE_URL = "https://api.allisai.ai";
-const DEFAULT_TIMEOUT_MS = 60_000;
-const DEFAULT_MAX_RETRIES = 2;
 
 /** The options of `new Allisall()`. Every one is optional. */
 export interface ClientOptions {
@@ -35,6 +50,10 @@ export interface ClientOptions {
   /**
    * The API's base URL, absolute, `http` or `https`. Defaults to
    * `AIA_BASE_URL` from the environment, then `https://api.allisai.ai`.
+   *
+   * In a browser it may also be a path on the page's own origin, starting
+   * with a single `/`, such as `/api` for a proxy. It is resolved against
+   * the page's address once, when the client is constructed.
    */
   baseURL?: string | undefined;
   /** The timeout of each attempt, in milliseconds. Defaults to 60,000. */
@@ -48,12 +67,12 @@ export interface ClientOptions {
    * read it. Defaults to `false`.
    */
   dangerouslyAllowBrowser?: boolean | undefined;
-}
-
-/** The options of one call. */
-export interface RequestOptions {
-  /** Cancels the call, including any wait between retries. */
-  signal?: AbortSignal | undefined;
+  /**
+   * Headers sent on every request. They may not name `Authorization`,
+   * `Content-Type`, `Idempotency-Key` or `X-Request-Id`, which the SDK sets.
+   * A call's own `headers` are sent over them.
+   */
+  defaultHeaders?: Readonly<Record<string, string>> | undefined;
 }
 
 function resolveCredential(options: ClientOptions): Credential {
@@ -96,14 +115,36 @@ function resolveCredential(options: ClientOptions): Credential {
   );
 }
 
-function resolveBaseURL(option: string | undefined): URL {
+/** Reads `globalThis.location.href`, where it exists. */
+function pageAddress(): string | undefined {
+  const location = globalValue("location");
+  if (typeof location !== "object" || location === null) return undefined;
+  const href: unknown = Reflect.get(location, "href");
+  return typeof href === "string" ? href : undefined;
+}
+
+/**
+ * Resolves the base URL: the option, else `AIA_BASE_URL`, else the API's
+ * own host. In a browser, a path starting with a single `/` is resolved
+ * against the page's address and must keep its origin.
+ *
+ * @throws {AllisallError} for a base URL the client refuses.
+ */
+function resolveBaseURL(option: string | undefined, browser: boolean): URL {
   const raw = option ?? readEnv("AIA_BASE_URL") ?? DEFAULT_BASE_URL;
+  // A path on the page's own origin, such as "/api". A leading "//" names
+  // another host, so it is not a path.
+  const pathOnly =
+    typeof raw === "string" && raw.startsWith("/") && !raw.startsWith("//");
+  const page = browser && pathOnly ? pageAddress() : undefined;
   let url: URL;
   try {
-    url = new URL(raw);
+    url = page === undefined ? new URL(raw) : new URL(raw, page);
   } catch {
     throw new AllisallError(
-      `allisall: the base URL ${JSON.stringify(raw)} is not an absolute URL`,
+      pathOnly && browser
+        ? `allisall: the base URL ${JSON.stringify(raw)} is a path, and the page's address could not be read to resolve it`
+        : `allisall: the base URL ${JSON.stringify(raw)} is not an absolute URL`,
     );
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
@@ -111,108 +152,130 @@ function resolveBaseURL(option: string | undefined): URL {
       `allisall: the base URL ${JSON.stringify(raw)} is not http or https`,
     );
   }
+  // URL parsing reads a backslash as "/" and drops tabs and newlines, so a
+  // value such as "/\other.example/api" passes the "//" check above and
+  // still names another host. Only the resolved origin settles it.
+  if (page !== undefined && url.origin !== new URL(page).origin) {
+    throw new AllisallError(
+      `allisall: the base URL ${JSON.stringify(raw)} is a path, but resolves to another origin, ${url.origin}`,
+    );
+  }
   return url;
 }
 
-function resolveTimeout(option: number | undefined): number {
-  const timeout = option ?? DEFAULT_TIMEOUT_MS;
-  if (
-    typeof timeout !== "number" ||
-    !Number.isFinite(timeout) ||
-    timeout <= 0
-  ) {
-    throw new AllisallError(
-      `allisall: timeout must be a positive number of milliseconds, not ${String(timeout)}`,
-    );
-  }
-  return timeout;
+/** The options a client and a shared-report call resolve alike. */
+export type TransportOptions = Pick<
+  ClientOptions,
+  "baseURL" | "timeout" | "maxRetries" | "fetch"
+>;
+
+/**
+ * Resolves what every request needs apart from its credential and default
+ * headers: the base URL, timeout, retries, `fetch` and `User-Agent`, which
+ * a browser does not send.
+ *
+ * @throws {AllisallError} for a base URL, timeout or `maxRetries` the
+ * client refuses.
+ */
+export function transportSettings(
+  options: TransportOptions,
+  browser: boolean,
+): Pick<
+  TransportConfig,
+  "baseURL" | "timeout" | "maxRetries" | "fetch" | "userAgent"
+> {
+  return {
+    baseURL: resolveBaseURL(options.baseURL, browser),
+    timeout: resolveTimeout(options.timeout, DEFAULT_TIMEOUT_MS),
+    maxRetries: resolveMaxRetries(options.maxRetries, DEFAULT_MAX_RETRIES),
+    fetch: options.fetch,
+    userAgent: userAgent(),
+  };
 }
 
-function resolveMaxRetries(option: number | undefined): number {
-  const maxRetries = option ?? DEFAULT_MAX_RETRIES;
-  if (!Number.isInteger(maxRetries) || maxRetries < 0) {
-    throw new AllisallError(
-      `allisall: maxRetries must be a whole number, 0 or more, not ${String(maxRetries)}`,
-    );
+/**
+ * Checks the client's options and fixes everything a request needs.
+ *
+ * @throws {AllisallError} for an option the client refuses.
+ * @throws {TypeError} when `defaultHeaders` is not a plain object of
+ * header names and string values, names a header the SDK sets, or holds a
+ * name or value the platform cannot send.
+ */
+export function transportConfig(options: ClientOptions): TransportConfig {
+  const credential = resolveCredential(options);
+  const browser = isBrowser();
+  const refuseApiKeys = browser && options.dangerouslyAllowBrowser !== true;
+  if (refuseApiKeys && credential.kind === "apiKey") {
+    throw new AllisallError(BROWSER_KEY_MESSAGE);
   }
-  return maxRetries;
+  return {
+    ...transportSettings(options, browser),
+    credential,
+    refuseApiKeys,
+    defaultHeaders: resolveHeaders(options.defaultHeaders, "defaultHeaders"),
+  };
 }
 
-/** The `events` operations. */
-class Events {
-  readonly #config: TransportConfig;
-
-  constructor(config: TransportConfig) {
-    this.#config = config;
-  }
-
-  /**
-   * Ingests any number of events. They are sent in batches of at most 500
-   * events and 5,000,000 bytes, one batch after another, each retried as
-   * the client allows. Every event without an `event_id` gets a generated
-   * one, so a retry never stores an event twice. Your objects are not
-   * modified.
-   *
-   * An event too large to send even alone is not sent, and is reported as a
-   * rejected row with the code `too_large`.
-   *
-   * @returns the combined outcome over the whole list.
-   * @throws {IngestError} when a batch fails; the call stops there, and the
-   * error carries the summary so far and every event from the failed batch
-   * onward, to send again. A batch fails on an error response, on no
-   * response, on the caller's cancellation, or when its token cannot be
-   * had: an error from `tokenProvider`, or, in a browser without
-   * `dangerouslyAllowBrowser`, a provider's token that is an API key. The
-   * error is the `IngestError`'s `cause`.
-   * @throws {TypeError} when an event cannot be encoded, before anything is sent.
-   */
-  ingest(
-    events: readonly EventInput[],
-    options: RequestOptions = {},
-  ): Promise<IngestSummary> {
-    const config = this.#config;
-    return ingest(
-      events,
-      (body, count, signal) =>
-        post(
-          config,
-          "/v1/events",
-          body,
-          (value) => readIngestResult(value, count),
-          signal,
-        ),
-      options.signal,
-    );
-  }
-}
-
-/** The allisall API client. Construct one and reuse it. */
+/**
+ * The allisall API client. Construct one and reuse it.
+ *
+ * Its operations are grouped by what they act on, one property per group,
+ * such as `client.clients.list()`. A failed call rejects with an `ApiError`
+ * for an error response, or a `ConnectionError` when no response arrived.
+ */
 export class Allisall {
-  /** The `events` operations. */
+  /** Events: ingest, and the events behind a client's totals. */
   readonly events: Events;
+  /** CSV imports of events. */
+  readonly imports: Imports;
+  /** Clients, and the agents assigned to each. */
+  readonly clients: Clients;
+  /** Agents. */
+  readonly agents: Agents;
+  /** Value models, by their own id or by their client's, and value templates. */
+  readonly valueModels: ValueModels;
+  /** Outcome types, for the workspace or for one client. */
+  readonly outcomeTypes: OutcomeTypes;
+  /** Cost line items and the price table. */
+  readonly cost: Cost;
+  /** A client's value, cost, ROI and anomalies over a period. */
+  readonly analytics: Analytics;
+  /** Calculations, and the human steps that validate, publish and reopen them. */
+  readonly calculations: Calculations;
+  /** Reports on calculations, and the human steps that share and revoke them. */
+  readonly reports: Reports;
+  /** The workspace's month, and renewal readiness. */
+  readonly dashboard: DashboardOperations;
+  /** API keys, managed with a session token. */
+  readonly apiKeys: ApiKeys;
+  /** The API's liveness. */
+  readonly health: HealthOperations;
 
   /**
    * @throws {AllisallError} when there is no credential, or both an API key
-   * and a token provider; when the base URL is not an absolute `http` or
-   * `https` URL; when `maxRetries` is negative or `timeout` is not
-   * positive; or when an API key is used in a browser without
-   * `dangerouslyAllowBrowser`.
+   * and a token provider; when the base URL is neither an absolute `http`
+   * or `https` URL nor, in a browser, a path starting with a single `/`
+   * that resolves to the page's own origin; when `maxRetries` is negative
+   * or `timeout` is not positive; or when an API key is used in a browser
+   * without `dangerouslyAllowBrowser`.
+   * @throws {TypeError} when `defaultHeaders` is not a plain object of
+   * header names and string values, names a header the SDK sets, or holds a
+   * name or value the platform cannot send.
    */
   constructor(options: ClientOptions = {}) {
-    const credential = resolveCredential(options);
-    const browser = isBrowser();
-    const refuseApiKeys = browser && options.dangerouslyAllowBrowser !== true;
-    if (refuseApiKeys && credential.kind === "apiKey") {
-      throw new AllisallError(BROWSER_KEY_MESSAGE);
-    }
-    this.events = new Events({
-      baseURL: resolveBaseURL(options.baseURL),
-      credential,
-      timeout: resolveTimeout(options.timeout),
-      maxRetries: resolveMaxRetries(options.maxRetries),
-      fetch: options.fetch,
-      refuseApiKeys,
-      userAgent: userAgent(),
-    });
+    const config = transportConfig(options);
+    this.events = new Events(config);
+    this.imports = new Imports(config);
+    this.clients = new Clients(config);
+    this.agents = new Agents(config);
+    this.valueModels = new ValueModels(config);
+    this.outcomeTypes = new OutcomeTypes(config);
+    this.cost = new Cost(config);
+    this.analytics = new Analytics(config);
+    this.calculations = new Calculations(config);
+    this.reports = new Reports(config);
+    this.dashboard = new DashboardOperations(config);
+    this.apiKeys = new ApiKeys(config);
+    this.health = new HealthOperations(config);
   }
 }

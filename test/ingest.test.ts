@@ -35,38 +35,38 @@ describe("splitting", () => {
     expect(summary.accepted).toBe(501);
   });
 
-  // size = 13 + s1 + s2 + 1 comma. 13 + 2,499,993 × 2 + 1 = 5,000,000.
-  it("sends a batch of exactly 5,000,000 bytes as one", async () => {
+  // size = 13 + s1 + s2 + 1 comma. 13 + 1,999,993 × 2 + 1 = 4,000,000.
+  it("sends a batch of exactly 4,000,000 bytes as one", async () => {
     const { fetch, calls } = fakeFetch();
-    const list = [eventOfSize(2_499_993, "a"), eventOfSize(2_499_993, "b")];
+    const list = [eventOfSize(1_999_993, "a"), eventOfSize(1_999_993, "b")];
     await client(fetch).events.ingest(list);
     expect(calls).toHaveLength(1);
-    expect(calls[0]?.body.length).toBe(5_000_000);
+    expect(calls[0]?.body.length).toBe(4_000_000);
   });
 
   it("splits before the event that takes the body one byte over", async () => {
     const { fetch, calls } = fakeFetch();
-    const list = [eventOfSize(2_499_993, "a"), eventOfSize(2_499_994, "b")];
+    const list = [eventOfSize(1_999_993, "a"), eventOfSize(1_999_994, "b")];
     await client(fetch).events.ingest(list);
     expect(calls.map((c) => c.body.length)).toEqual([
-      13 + 2_499_993,
-      13 + 2_499_994,
+      13 + 1_999_993,
+      13 + 1_999_994,
     ]);
   });
 
-  it("sends an event of 4,999,987 bytes alone", async () => {
+  it("sends an event of 3,999,987 bytes alone", async () => {
     const { fetch, calls } = fakeFetch();
     const summary = await client(fetch).events.ingest([
-      eventOfSize(4_999_987, "a"),
+      eventOfSize(3_999_987, "a"),
     ]);
-    expect(calls.map((c) => c.body.length)).toEqual([5_000_000]);
+    expect(calls.map((c) => c.body.length)).toEqual([4_000_000]);
     expect(summary).toMatchObject({ accepted: 1, rejected: 0, errors: [] });
   });
 
-  it("does not send an event of 4,999,988 bytes, and reports it as too_large", async () => {
+  it("does not send an event of 3,999,988 bytes, and reports it as too_large", async () => {
     const { fetch, calls } = fakeFetch();
     const summary = await client(fetch).events.ingest([
-      eventOfSize(4_999_988, "a"),
+      eventOfSize(3_999_988, "a"),
     ]);
     expect(calls).toHaveLength(0);
     expect(summary).toMatchObject({
@@ -76,23 +76,23 @@ describe("splitting", () => {
       batches: 0,
       errors: [{ index: 0, code: "too_large", pointer: "/events/0" }],
     });
-    expect(summary.errors[0]?.detail).toContain("4999987");
+    expect(summary.errors[0]?.detail).toContain("3999987");
   });
 
   it("measures an event in UTF-8 bytes, not characters", async () => {
     // "é" is 2 bytes and 1 UTF-16 unit; "😀" is 4 bytes and 2 units.
-    // The two events total 4,999,987 bytes: one byte over the 4,999,986
+    // The two events total 3,999,987 bytes: one byte over the 3,999,986
     // that fit beside the envelope and the comma. Counted in UTF-16 units
     // they are 3 short of the limit, so counting characters would send one
     // batch.
-    const second = eventOfSize(2_499_994, "b", "é😀");
+    const second = eventOfSize(1_999_994, "b", "é😀");
     const text = JSON.stringify(second);
     expect(byteLength(text) - text.length).toBe(3);
 
     const { fetch, calls } = fakeFetch();
-    await client(fetch).events.ingest([eventOfSize(2_499_993, "a"), second]);
+    await client(fetch).events.ingest([eventOfSize(1_999_993, "a"), second]);
     expect(calls).toHaveLength(2);
-    expect(calls[1]?.body.length).toBe(13 + 2_499_994);
+    expect(calls[1]?.body.length).toBe(13 + 1_999_994);
   });
 });
 
@@ -175,9 +175,80 @@ describe("combining", () => {
     expect(summary.errors_truncated).toBe(false);
   });
 
+  // The API may omit every entry of a rejected row when the errors list's
+  // byte limit leaves entries out; errors_truncated then says so.
+  it("accepts rejected rows with no entries when errors_truncated is true", async () => {
+    const { fetch } = fakeFetch([
+      () =>
+        json(200, {
+          accepted: 2,
+          duplicates: 0,
+          rejected: 3,
+          errors: [],
+          errors_truncated: true,
+        }),
+    ]);
+    const summary = await client(fetch).events.ingest(events(5));
+    expect(summary).toEqual({
+      accepted: 2,
+      duplicates: 0,
+      rejected: 3,
+      errors: [],
+      errors_truncated: true,
+      batches: 1,
+    });
+  });
+
+  it("keeps errors_truncated from an earlier batch and sums rejected rows without entries", async () => {
+    // The truncated batch comes first, so a summary that kept only the
+    // last batch's flag would read false. The second batch is untruncated,
+    // so its one rejected row has its entry, at the caller's index 500.
+    const { fetch } = fakeFetch([
+      () =>
+        json(200, {
+          accepted: 496,
+          duplicates: 0,
+          rejected: 4,
+          errors: [],
+          errors_truncated: true,
+        }),
+      () =>
+        json(200, {
+          accepted: 0,
+          duplicates: 0,
+          rejected: 1,
+          errors: [
+            {
+              index: 0,
+              code: "required",
+              pointer: "/events/0/agent_key",
+              detail: "d",
+            },
+          ],
+          errors_truncated: false,
+        }),
+    ]);
+    const summary = await client(fetch).events.ingest(events(501));
+    expect(summary).toEqual({
+      accepted: 496,
+      duplicates: 0,
+      rejected: 5,
+      errors: [
+        {
+          index: 500,
+          code: "required",
+          pointer: "/events/500/agent_key",
+          detail: "d",
+        },
+      ],
+      errors_truncated: true,
+      batches: 2,
+    });
+  });
+
   it("maps row errors past an event too large to send, and orders errors by index", async () => {
     // Index 1 is too large, so the one batch holds indexes 0, 2 and 3.
-    const list = [event(0), eventOfSize(4_999_988, "big"), event(2), event(3)];
+    const list = [event(0), eventOfSize(3_999_988, "big"), event(2), event(3)];
     const { fetch, calls } = fakeFetch([
       () =>
         json(200, {

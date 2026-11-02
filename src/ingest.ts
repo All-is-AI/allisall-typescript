@@ -14,7 +14,7 @@ import { uuidv4 } from "./uuid.js";
 /** The most events one batch holds. */
 export const MAX_BATCH_EVENTS = 500;
 /** The API's body limit for a batch, in bytes, inclusive. */
-export const MAX_BODY_BYTES = 5_000_000;
+export const MAX_BODY_BYTES = 4_000_000;
 /** The bytes of `{"events":[` and `]}` around a batch's events. */
 const ENVELOPE_BYTES = 13;
 /** The largest event that fits in a batch alone. */
@@ -160,7 +160,7 @@ function tooLarge(p: Prepared): IngestRowError {
 
 /**
  * Packs events into batches in input order. A batch closes at 500 events,
- * or before an event that would take its body over 5,000,000 bytes. An
+ * or before an event that would take its body over 4,000,000 bytes. An
  * event too large to send alone joins no batch and becomes a row error.
  */
 function split(prepared: readonly Prepared[]): {

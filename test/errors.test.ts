@@ -68,7 +68,7 @@ describe("a failed batch", () => {
 
   it("reports an event too large to send in the summary, never in remaining", async () => {
     const big: EventInput = event(2, {
-      metadata: { pad: "x".repeat(5_000_000) },
+      metadata: { pad: "x".repeat(4_000_000) },
     });
     const { fetch } = fakeFetch([() => problem(403, "insufficient_scope")]);
     const err = await failure(
@@ -141,6 +141,41 @@ describe("errors", () => {
     expect(api.problem).toBeUndefined();
     expect(api.requestId).toBe("proxy-1");
   });
+
+  // A proxy in front of the API may answer 413 with a body that is not a
+  // problem document.
+  it.each([
+    ["text/plain", "Request Entity Too Large", "text/plain; charset=utf-8"],
+    [
+      "JSON of another shape",
+      JSON.stringify({ error: "too large" }),
+      "application/json",
+    ],
+  ])(
+    "gives a proxy's 413 with a %s body an ApiError with status 413 and no code, and does not retry it",
+    async (_, body, contentType) => {
+      const { fetch, calls } = fakeFetch([
+        () =>
+          new Response(body, {
+            status: 413,
+            headers: {
+              "Content-Type": contentType,
+            },
+          }),
+      ]);
+      // The default retries: a 413 must still be sent only once.
+      const c = new Allisall({ apiKey: "aia_test", fetch });
+      const err = await failure(c.events.ingest([event(0)]));
+      const api = instance(err.cause, ApiError);
+      expect(api.status).toBe(413);
+      expect(api.code).toBeUndefined();
+      expect(api.problem).toBeUndefined();
+      expect(api.message).toBe("allisall: the API answered 413");
+      expect(calls).toHaveLength(1);
+      expect(err.remainingFrom).toBe(0);
+      expect(err.remaining).toHaveLength(1);
+    },
+  );
 
   it("reports a 2xx body of the wrong shape as an ApiError, without retrying", async () => {
     const { fetch, calls } = fakeFetch([() => json(200, { ok: true })]);

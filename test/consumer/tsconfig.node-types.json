@@ -10,5 +10,5 @@
     "skipLibCheck": false,
     "noEmit": true
   },
-  "include": ["index.ts", "readme/*.ts"]
+  "include": ["index.ts", "readme/*.ts", "../../examples/*.mts"]
 }

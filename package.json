@@ -1,7 +1,7 @@
 {
   "name": "@allisall/sdk",
-  "version": "0.1.0",
-  "description": "The allisall SDK for TypeScript and JavaScript: send events to the allisall API.",
+  "version": "0.2.0",
+  "description": "The allisall SDK for TypeScript and JavaScript: a typed client for the allisall API, from sending events to publishing reports.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -28,11 +28,12 @@
     "build": "tsc -p tsconfig.build.json",
     "lint": "biome check . && tsc --noEmit -p tsconfig.json",
     "test": "vitest run && npm run test:consumer",
-    "test:consumer": "tsc -p tsconfig.build.json && node test/consumer/extract-readme.mjs && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.bundler.json && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.node16.json && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.node-types.json"
+    "test:consumer": "tsc -p tsconfig.build.json && node test/consumer/extract-readme.mjs && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.bundler.json && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.node16.json && node node_modules/typescript-5.0/bin/tsc -p test/consumer/tsconfig.node-types.json && tsc -p test/consumer/tsconfig.examples.json"
   },
   "devDependencies": {
     "@biomejs/biome": "2.5.4",
     "@types/node": "^22.20.5",
+    "openapi-typescript": "7.13.0",
     "typescript": "~5.9.3",
     "typescript-5.0": "npm:typescript@5.0.4",
     "vitest": "^4.1.10",

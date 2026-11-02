@@ -1,7 +1,9 @@
 // One HTTP attempt (headers, timeout, reading the response) and the loop
-// that repeats it under the retry rules in retry.ts.
+// that repeats it under the retry rules in retry.ts, for any method and
+// any body.
 
 import { AllisallError, ApiError, ConnectionError } from "./errors.js";
+import { mergeHeaders } from "./options.js";
 import {
   backoffMs,
   isRetryableStatus,
@@ -26,7 +28,11 @@ export type Credential =
 /** Everything an attempt needs, fixed when the client is constructed. */
 export interface TransportConfig {
   readonly baseURL: URL;
-  readonly credential: Credential;
+  /**
+   * The client's credential. Absent for a shared report, whose call carries
+   * its own share token and sends no client credential.
+   */
+  readonly credential: Credential | undefined;
   readonly timeout: number;
   readonly maxRetries: number;
   readonly fetch: FetchLike | undefined;
@@ -34,6 +40,8 @@ export interface TransportConfig {
   readonly refuseApiKeys: boolean;
   /** The `User-Agent` to send; `undefined` in a browser. */
   readonly userAgent: string | undefined;
+  /** Headers sent on every request, already checked. */
+  readonly defaultHeaders: Readonly<Record<string, string>>;
 }
 
 /** The message of the error refusing an API key in a browser. */
@@ -70,6 +78,9 @@ export function isPrintableCredential(credential: string): boolean {
 
 async function bearerToken(config: TransportConfig): Promise<string> {
   const { credential } = config;
+  if (credential === undefined) {
+    throw new AllisallError("allisall: this call has no client credential");
+  }
   if (credential.kind === "apiKey") return credential.apiKey;
   const raw = await credential.provider();
   const token = typeof raw === "string" ? raw.trim() : raw;
@@ -164,43 +175,87 @@ function headerOrUndefined(headers: Headers, name: string): string | undefined {
 }
 
 /**
- * Sends one attempt. Resolves with the parsed `2xx` body; throws an
+ * How a successful body is read. `undefined` means the body was not the
+ * expected shape, which is an `ApiError` carrying the status.
+ */
+export type ReadBody<T> = (text: string) => { readonly value: T } | undefined;
+
+/**
+ * The `Authorization` a request sends: the client's credential as a bearer,
+ * none, or a share token under the `Report` scheme.
+ */
+export type Authorization = "bearer" | "none" | { readonly report: string };
+
+/** One request, fixed before the first attempt and sent unchanged on each. */
+export interface Outgoing {
+  readonly method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
+  readonly url: string;
+  readonly authorization: Authorization;
+  /** The body: bytes, or a form whose boundary `fetch` writes. */
+  readonly body: Uint8Array | FormData | undefined;
+  /** The body's `Content-Type`; `undefined` for no body, or a form. */
+  readonly contentType: string | undefined;
+  /** The `Idempotency-Key` sent on every attempt, if any. */
+  readonly idempotencyKey: string | undefined;
+}
+
+/** What one call may do, from its operation and its options. */
+export interface CallPolicy {
+  readonly timeout: number;
+  readonly maxRetries: number;
+  /** The call's headers, already checked. */
+  readonly headers: Readonly<Record<string, string>>;
+  readonly signal: AbortSignal | undefined;
+  /** Whether a retry cannot apply the request twice, so it may be retried at all. */
+  readonly eligible: boolean;
+  /** Whether a `409` `idempotency_key_in_use` is retried: the request carries a reused key. */
+  readonly retryKeyInUse: boolean;
+}
+
+/**
+ * Sends one attempt. Resolves with the read `2xx` body; throws an
  * `ApiError` for any other status or an unreadable `2xx` body, a
  * `ConnectionError` when no response arrived, or the caller's abort reason.
  */
 async function attempt<T>(
   config: TransportConfig,
-  url: string,
-  body: Uint8Array,
-  read: (body: unknown) => T | undefined,
-  token: string,
+  out: Outgoing,
+  read: ReadBody<T>,
+  authorization: string | undefined,
   requestId: string,
-  signal: AbortSignal | undefined,
+  policy: CallPolicy,
 ): Promise<T> {
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${token}`,
-    "Content-Type": "application/json",
-    "X-Request-Id": requestId,
-  };
+  const headers: Record<string, string> = {};
+  if (authorization !== undefined) headers.Authorization = authorization;
+  if (out.contentType !== undefined) headers["Content-Type"] = out.contentType;
+  headers["X-Request-Id"] = requestId;
   if (config.userAgent !== undefined) headers["User-Agent"] = config.userAgent;
+  if (out.idempotencyKey !== undefined) {
+    headers["Idempotency-Key"] = out.idempotencyKey;
+  }
+  mergeHeaders(headers, config.defaultHeaders);
+  mergeHeaders(headers, policy.headers);
 
-  const timeout = AbortSignal.timeout(config.timeout);
+  const { signal } = policy;
+  const timeout = AbortSignal.timeout(policy.timeout);
   const combined =
     signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
   const doFetch = config.fetch ?? globalThis.fetch;
 
+  const init: RequestInit = {
+    method: out.method,
+    headers,
+    ...(out.body === undefined ? {} : { body: out.body }),
+    signal: combined,
+    // A redirect is never followed, so Authorization never travels to
+    // another location.
+    redirect: "manual",
+  };
+
   let response: Response;
   let text: string;
   try {
-    response = await doFetch(url, {
-      method: "POST",
-      headers,
-      body,
-      signal: combined,
-      // A redirect is never followed, so Authorization never travels to
-      // another location.
-      redirect: "manual",
-    });
+    response = await doFetch(out.url, init);
     text = await response.text();
   } catch (err) {
     if (signal?.aborted) throw signal.reason;
@@ -219,9 +274,8 @@ async function attempt<T>(
     });
   }
   if (status >= 200 && status < 300) {
-    const parsed = parseJSON(text);
-    const value = parsed === undefined ? undefined : read(parsed);
-    if (value !== undefined) return value;
+    const result = read(text);
+    if (result !== undefined) return result.value;
     throw new ApiError({
       status,
       headers: response.headers,
@@ -241,30 +295,53 @@ async function attempt<T>(
   });
 }
 
-/**
- * Posts a JSON body, retrying a failure worth repeating. The body is the
- * same bytes on every attempt. Each attempt reads a fresh token and sends
- * a fresh `X-Request-Id`.
- */
-export async function post<T>(
+function worthRepeating(
+  err: ApiError | ConnectionError,
+  policy: CallPolicy,
+): boolean {
+  if (err instanceof ConnectionError) return true;
+  if (isRetryableStatus(err.status)) return true;
+  // The first request with this key is still running; a later attempt can
+  // collect its outcome.
+  return (
+    policy.retryKeyInUse &&
+    err.status === 409 &&
+    err.code === "idempotency_key_in_use"
+  );
+}
+
+/** The `Authorization` value of one attempt, reading a fresh bearer token. */
+async function authorizationOf(
   config: TransportConfig,
-  path: string,
-  body: Uint8Array,
-  read: (body: unknown) => T | undefined,
-  signal: AbortSignal | undefined,
+  out: Outgoing,
+): Promise<string | undefined> {
+  const { authorization } = out;
+  if (authorization === "none") return undefined;
+  if (authorization === "bearer") return `Bearer ${await bearerToken(config)}`;
+  return `Report ${authorization.report}`;
+}
+
+/**
+ * Sends a request, retrying a failure worth repeating when the request is
+ * eligible. The body is the same on every attempt. Each attempt reads a
+ * fresh token and sends a fresh `X-Request-Id`.
+ */
+export async function send<T>(
+  config: TransportConfig,
+  out: Outgoing,
+  read: ReadBody<T>,
+  policy: CallPolicy,
 ): Promise<T> {
-  const url = joinURL(config.baseURL, path);
+  const maxRetries = policy.eligible ? policy.maxRetries : 0;
   for (let retry = 0; ; retry++) {
     // An error from the token provider ends the call unwrapped and unretried.
-    const token = await bearerToken(config);
+    const authorization = await authorizationOf(config, out);
     try {
-      return await attempt(config, url, body, read, token, uuidv4(), signal);
+      return await attempt(config, out, read, authorization, uuidv4(), policy);
     } catch (err) {
       if (!(err instanceof ApiError || err instanceof ConnectionError))
         throw err;
-      const retryable =
-        err instanceof ConnectionError || isRetryableStatus(err.status);
-      if (!retryable || retry >= config.maxRetries) throw err;
+      if (!worthRepeating(err, policy) || retry >= maxRetries) throw err;
       let wait: number;
       if (err instanceof ApiError && err.retryAfter !== undefined) {
         if (err.retryAfter > MAX_RETRY_AFTER_MS) throw err;
@@ -272,7 +349,37 @@ export async function post<T>(
       } else {
         wait = backoffMs(retry + 1);
       }
-      await sleep(wait, signal);
+      await sleep(wait, policy.signal);
     }
   }
+}
+
+/**
+ * Posts a JSON body that a retry cannot apply twice, such as an ingest
+ * batch, retrying a failure worth repeating.
+ */
+export function post<T>(
+  config: TransportConfig,
+  path: string,
+  body: Uint8Array,
+  read: (body: unknown) => T | undefined,
+  policy: Omit<CallPolicy, "eligible" | "retryKeyInUse">,
+): Promise<T> {
+  return send(
+    config,
+    {
+      method: "POST",
+      url: joinURL(config.baseURL, path),
+      authorization: "bearer",
+      body,
+      contentType: "application/json",
+      idempotencyKey: undefined,
+    },
+    (text) => {
+      const parsed = parseJSON(text);
+      const value = parsed === undefined ? undefined : read(parsed);
+      return value === undefined ? undefined : { value };
+    },
+    { ...policy, eligible: true, retryKeyInUse: false },
+  );
 }

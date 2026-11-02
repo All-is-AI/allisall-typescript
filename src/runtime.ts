@@ -5,7 +5,8 @@
 
 import { VERSION } from "./version.js";
 
-function globalValue(name: string): unknown {
+/** Reads a global by name, so a runtime without it is never touched. */
+export function globalValue(name: string): unknown {
   const value: unknown = Reflect.get(globalThis, name);
   return value;
 }
