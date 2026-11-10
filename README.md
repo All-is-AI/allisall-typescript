@@ -89,9 +89,12 @@ const created = await client.clients.create({
 });
 
 // An update is a merge patch: a member you leave out keeps its value, and
-// null clears it.
+// null clears it. This sets the renewal date to one calendar year after
+// today's UTC date; a date before yesterday in UTC is refused.
+const renewal = new Date();
+renewal.setUTCFullYear(renewal.getUTCFullYear() + 1);
 const updated = await client.clients.update(created.id, {
-  renewal_date: "2026-12-31",
+  renewal_date: renewal.toISOString().slice(0, 10),
 });
 console.log(updated.name, updated.renewal_date);
 ```

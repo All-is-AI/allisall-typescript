@@ -17,7 +17,9 @@ export interface ImportUpload {
   file: Blob | Uint8Array | string;
   /**
    * The file name the import records. Defaults to the name of a `File`, and
-   * otherwise to `upload.csv`; an empty name counts as none.
+   * otherwise to `upload.csv`; an empty name counts as none. A name longer
+   * than 255 characters, counted after any directory part separated by
+   * `/`, is refused with `400` `too_long`.
    */
   filename?: string | undefined;
 }

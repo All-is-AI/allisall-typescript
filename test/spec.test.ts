@@ -148,6 +148,17 @@ describe.skipIf(specPath === null)(
   () => {
     it("lists every ErrorCode and no other", () => {
       expect(sorted(ERROR_CODES)).toEqual(sorted(catalogue(spec, "ErrorCode")));
+      // The six codes of the invite and workspace operations among them.
+      expect(ERROR_CODES).toEqual(
+        expect.arrayContaining([
+          "invite_expired",
+          "invite_used",
+          "invite_revoked",
+          "invite_email_mismatch",
+          "email_has_workspace",
+          "upstream_failed",
+        ]),
+      );
     });
 
     it("lists every FieldErrorCode and no other", () => {

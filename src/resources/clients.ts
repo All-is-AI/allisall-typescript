@@ -27,6 +27,13 @@ export class Clients {
    * Lists clients. Await the result for one page; iterate it with
    * `for await` for every client of every page.
    *
+   * Pass `page` for a numbered page: its `body` then holds `page` and
+   * `total`. Only that first page is counted; every later page of a walk
+   * continues by cursor from it, and its `page` and `total` are `null`. To
+   * show another numbered page, call this method again with its `page`
+   * rather than `getNextPage()`. A `page` past the end has no items, and the
+   * walk ends there.
+   *
    * Needs the `read` scope. Operation `listClients`.
    */
   list(
@@ -38,6 +45,15 @@ export class Clients {
 
   /**
    * Creates a client.
+   *
+   * A `renewal_date` before the request's UTC date less one day is refused
+   * with `400` `out_of_range`, so no time zone's today is refused. With a
+   * `renewal_term`, an active client's renewal date rolls forward by whole
+   * terms once it passes.
+   *
+   * `client_key` is unique in the workspace, ignoring letter case and
+   * surrounding whitespace: a key another client already holds, in any
+   * case or padding, is refused with `409` `client_key_in_use`.
    *
    * Every attempt of the call sends one `Idempotency-Key`, so a retry
    * cannot create a second client.
@@ -63,6 +79,18 @@ export class Clients {
   /**
    * Updates a client with a merge patch: a member left out keeps its
    * value, `null` clears it, and any other value sets it.
+   *
+   * Sending back the `renewal_date` a read returned keeps the client's
+   * renewal schedule: a date on the schedule, up to the one it shows on the
+   * next UTC day, changes nothing. Any other date is a new renewal date, and
+   * one before the request's UTC date less one day is refused with `400`
+   * `out_of_range`. A patch that changes `renewal_term` or `status` saves
+   * the date the client shows on the current UTC day as the new start of
+   * its schedule, without the patch sending a date.
+   *
+   * `client_key` is unique in the workspace, ignoring letter case and
+   * surrounding whitespace: a key another client already holds, in any
+   * case or padding, is refused with `409` `client_key_in_use`.
    *
    * Never retried.
    *

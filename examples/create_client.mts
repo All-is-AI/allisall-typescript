@@ -3,6 +3,11 @@ import { Allisall, ApiError } from "@allisall/sdk";
 // Reads the API key from AIA_API_KEY.
 const client = new Allisall();
 
+// A renewal date one calendar year after today's UTC date, as YYYY-MM-DD.
+// A date before yesterday in UTC is refused.
+const renewal = new Date();
+renewal.setUTCFullYear(renewal.getUTCFullYear() + 1);
+
 try {
   // The SDK sends one Idempotency-Key on every attempt, so a retry cannot
   // create a second client.
@@ -10,7 +15,7 @@ try {
     name: "Acme Logistics",
     status: "active",
     client_key: "acme",
-    renewal_date: "2026-12-31",
+    renewal_date: renewal.toISOString().slice(0, 10),
   });
   console.log(`created client ${created.id} (${created.name})`);
 } catch (error) {

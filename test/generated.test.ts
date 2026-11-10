@@ -31,11 +31,15 @@ import type {
   FieldErrorCode,
   Health,
   IngestRowError,
+  Onboarding,
+  OnboardingSkippedStepsSet,
+  OnboardingStepProgress,
   PeriodInput,
   Problem,
   ValueResult,
 } from "../src/index.js";
 import type { MoneyInput } from "../src/money.js";
+import { PINNED_ECHO } from "../src/request.js";
 import { isRecord, type Json, readSpecText, resolveRef } from "./spec-file.js";
 
 type Schemas = components["schemas"];
@@ -124,6 +128,75 @@ describe.skipIf(spec === null)("the committed generated files", () => {
     ]);
   });
 
+  it("list the repeatable parameters the document marks x-repeatable, and follow a new mark", async () => {
+    const marked = (doc: Json): Record<string, string[]> => {
+      const out: Record<string, string[]> = {};
+      for (const { id, op } of sdkOperations(doc)) {
+        const params = Array.isArray(op.parameters) ? op.parameters : [];
+        out[id] = params
+          .map((p) => deref(doc, p))
+          .filter(
+            (p) =>
+              isRecord(p) && p.in === "query" && p["x-repeatable"] === true,
+          )
+          .map((p) => (isRecord(p) ? String(p.name) : ""));
+      }
+      return out;
+    };
+    const table = Object.fromEntries(
+      Object.entries(OPERATIONS).map(([id, op]) => [id, [...op.repeatable]]),
+    );
+    expect(table).toEqual(marked(spec));
+    expect(
+      Object.entries(table).filter(([, names]) => names.length > 0),
+    ).toEqual([["listRenewals", ["renewal_term"]]]);
+
+    // Marking another parameter makes the generated table list it.
+    const mutated = structuredClone(spec);
+    const paths = isRecord(mutated) ? mutated.paths : undefined;
+    const clients = isRecord(paths) ? paths["/v1/clients"] : undefined;
+    const list = isRecord(clients) ? clients.get : undefined;
+    const params =
+      isRecord(list) && Array.isArray(list.parameters) ? list.parameters : [];
+    const status = params.find((p) => isRecord(p) && p.name === "status");
+    if (!isRecord(status)) throw new Error("listClients has no inline status");
+    status["x-repeatable"] = true;
+    const generate = await loadGenerator();
+    const operations = (await generate(stringify(mutated)))[
+      "src/generated/operations.ts"
+    ];
+    const entry = operations?.slice(operations.indexOf("  listClients: {"));
+    expect(entry?.slice(0, entry.indexOf("},"))).toContain(
+      'repeatable: ["status"]',
+    );
+  });
+
+  it("pin only a member that is both a query parameter and a member of the list's body", () => {
+    expect(PINNED_ECHO).toEqual({ listRenewals: "today" });
+    for (const [id, name] of Object.entries(PINNED_ECHO)) {
+      const found = sdkOperations(spec).find((o) => o.id === id);
+      if (found === undefined) throw new Error(`${id} is not in the document`);
+      const params = Array.isArray(found.op.parameters)
+        ? found.op.parameters
+        : [];
+      expect(
+        params.some((p) => {
+          const r = deref(spec, p);
+          return isRecord(r) && r.in === "query" && r.name === name;
+        }),
+        `${id} takes ${name}`,
+      ).toBe(true);
+      const responses = isRecord(found.op.responses) ? found.op.responses : {};
+      const ok = deref(spec, responses["200"] ?? null);
+      const content = isRecord(ok) && isRecord(ok.content) ? ok.content : {};
+      const json = content["application/json"];
+      const body = deref(spec, isRecord(json) ? (json.schema ?? null) : null);
+      const required =
+        isRecord(body) && Array.isArray(body.required) ? body.required : [];
+      expect(required, `${id}'s body echoes ${name}`).toContain(name);
+    }
+  });
+
   it("go stale when a Money member becomes a plain number", async () => {
     const mutated = structuredClone(spec);
     const total = member(mutated, "ValueResult", "total");
@@ -184,7 +257,13 @@ interface SpecOperation {
   op: Record<string, Json>;
 }
 
-/** Every operation of the document's SDK tags: all but `Problem types`, and no HEAD. */
+/** The access policies whose operations no SDK exposes. */
+const LEFT_OUT_POLICIES = new Set(["InviteToken", "InviteeSession"]);
+
+/**
+ * Every operation of the document's SDK tags that the SDK calls: all but
+ * `Problem types`, no HEAD, and none under a policy no SDK exposes.
+ */
 function sdkOperations(doc: Json): SpecOperation[] {
   const paths = isRecord(doc) ? doc.paths : undefined;
   if (!isRecord(paths)) throw new Error("no paths");
@@ -196,6 +275,13 @@ function sdkOperations(doc: Json): SpecOperation[] {
       if (method === "head") continue;
       const tags = Array.isArray(op.tags) ? op.tags : [];
       if (tags.includes("Problem types")) continue;
+      const access = isRecord(op["x-access"]) ? op["x-access"] : {};
+      if (
+        typeof access.policy === "string" &&
+        LEFT_OUT_POLICIES.has(access.policy)
+      ) {
+        continue;
+      }
       out.push({ id: op.operationId, method, path, op });
     }
   }
@@ -294,10 +380,67 @@ function bodyKind(doc: Json, op: Record<string, Json>): Operation["body"] {
 describe.skipIf(spec === null)(
   "the operation table against the document",
   () => {
-    it("holds the 58 operations of the SDK tags, and no other", () => {
+    it("holds the 68 operations of the SDK tags, and no other", () => {
       const ids = sdkOperations(spec).map((o) => o.id);
-      expect(ids).toHaveLength(58);
+      expect(ids).toHaveLength(68);
       expect(Object.keys(OPERATIONS).sort()).toEqual([...ids].sort());
+      expect(ids).toEqual(
+        expect.arrayContaining([
+          "getWorkspace",
+          "getOnboarding",
+          "setOnboardingSkippedSteps",
+          "listCalculations",
+          "listReports",
+          "listImports",
+          "getImport",
+          "listEvents",
+          "getEventSummary",
+          "listEventArrivals",
+        ]),
+      );
+      // The three operations under InviteToken and InviteeSession are left
+      // out.
+      expect(Object.keys(OPERATIONS)).not.toContain("redeemInvite");
+      expect(Object.keys(OPERATIONS)).not.toContain("createWorkspace");
+      expect(Object.keys(OPERATIONS)).not.toContain("getInvite");
+    });
+
+    it("names exactly the policies it calls and the two it leaves out", async () => {
+      const href = new URL("scripts/generate.mjs", PACKAGE).href;
+      const module: unknown = await import(href);
+      if (!isRecord(module)) throw new Error("the generator is not a module");
+      expect(module.SDK_POLICIES).toEqual([
+        "KeyOnly",
+        "KeyOrSession",
+        "SessionOnly",
+        "Public",
+        "ShareToken",
+      ]);
+      expect(module.EXCLUDED_POLICIES).toEqual([
+        "InviteToken",
+        "InviteeSession",
+      ]);
+    });
+
+    it("refuses an operation under an access policy the script does not know, naming both", async () => {
+      // A new policy is decided before the SDK exposes or drops it: skipping
+      // the operation would fail this test as surely as taking it in.
+      const mutated = structuredClone(spec);
+      const paths = isRecord(mutated) ? mutated.paths : undefined;
+      const item = isRecord(paths) ? paths["/v1/agents"] : undefined;
+      const get = isRecord(item) ? item.get : undefined;
+      if (!isRecord(paths) || !isRecord(get)) throw new Error("no listAgents");
+      paths["/v1/widgets"] = {
+        get: {
+          ...structuredClone(get),
+          operationId: "listWidgets",
+          "x-access": { policy: "PartnerToken" },
+        },
+      };
+      const generate = await loadGenerator();
+      await expect(generate(stringify(mutated))).rejects.toThrow(
+        /listWidgets has the x-access policy PartnerToken/,
+      );
     });
 
     it("states each operation's method, path, access, idempotency, list kind, body and status", () => {
@@ -319,7 +462,7 @@ describe.skipIf(spec === null)(
       }
     });
 
-    it("lists every Money path of each request and response, 191 and 6 in all", () => {
+    it("lists every Money path of each request and response, 195 and 6 in all", () => {
       let requests = 0;
       let responses = 0;
       let withResponseMoney = 0;
@@ -338,8 +481,8 @@ describe.skipIf(spec === null)(
       }
       expect({ requests, responses, withResponseMoney }).toEqual({
         requests: 6,
-        responses: 191,
-        withResponseMoney: 28,
+        responses: 195,
+        withResponseMoney: 31,
       });
     });
 
@@ -402,10 +545,15 @@ function countOpenSites(doc: Json): number {
 }
 
 describe.skipIf(spec === null)("the open sets of values", () => {
-  it("are 27 in the document, the seven error-code sites among them, and each is generated open", () => {
-    expect(countOpenSites(spec)).toBe(27);
+  it("are 35 in the document, the seven error-code sites among them, and each is generated open", () => {
+    expect(countOpenSites(spec)).toBe(35);
     const generated = committed("src/generated/openapi.ts");
-    expect(generated.match(/\| \(string & \{\}\)/g)).toHaveLength(27);
+    expect(generated.match(/\| \(string & \{\}\)/g)).toHaveLength(35);
+    // The guided setup's two: a step's step, and the current step.
+    const onboardingSites = generated.match(
+      /\["OnboardingStep"\] \| \(string & \{\}\)/g,
+    );
+    expect(onboardingSites).toHaveLength(2);
     const codeSites = generated.match(
       /\["(?:Field)?ErrorCode"\] \| \(string & \{\}\)/g,
     );
@@ -422,7 +570,11 @@ const openScope: ApiKey["scopes"][number] = unlisted;
 const openHealth: Health["status"] = unlisted;
 const openProblemCode: Schemas["Problem"]["code"] = unlisted;
 const openRowCode: Schemas["IngestRowError"]["code"] = unlisted;
+const openStep: OnboardingStepProgress["step"] = unlisted;
+const openCurrentStep: Onboarding["current_step"] = unlisted;
 void [
+  openStep,
+  openCurrentStep,
   openClient,
   openAgent,
   openCalculation,
@@ -434,6 +586,9 @@ void [
 // @ts-expect-error The enum itself stays closed: only a site that reads it is open.
 const closedStatus: ClientStatus = unlisted;
 void closedStatus;
+// @ts-expect-error A request names only the listed steps.
+const closedSkip: OnboardingSkippedStepsSet["steps"][number] = unlisted;
+void closedSkip;
 
 // ---- The transform hook's three changes, at compile time ----
 
@@ -490,6 +645,7 @@ const SCALARS = [
   "DateInput",
   "Month",
   "Currency",
+  "SearchText",
   "MinorUnits",
   "Money",
   "Ratio",
@@ -504,6 +660,8 @@ const KEPT = [
   "IngestRowError",
 ];
 const INTERNAL = ["EventBatch", "IngestResult"];
+/** Reached only by operations no SDK exposes, so never exported. */
+const NOT_EXPOSED = ["InviteRedemption", "WorkspaceCreate", "OpenInvite"];
 /** Exported under the schema's name, but the SDK's own shape, never the schema's alias. */
 const OWN = ["ImportUpload"];
 
@@ -555,18 +713,31 @@ function publicNames(): PublicNames {
 }
 
 describe.skipIf(spec === null)("the public type names", () => {
-  it("are every schema less the scalars and the internal three, each an alias of its own schema but the kept seven and ImportUpload", () => {
+  it("are every schema less the scalars, the internal three and the three no SDK exposes, each an alias of its own schema but the kept seven and ImportUpload", () => {
     const all = Object.keys(schemas(spec));
-    expect(all).toHaveLength(120);
-    const excluded = new Set([...SCALARS, ...INTERNAL, ...OWN]);
+    expect(all).toHaveLength(145);
+    const excluded = new Set([...SCALARS, ...INTERNAL, ...OWN, ...NOT_EXPOSED]);
     const aliased = all.filter((n) => !excluded.has(n) && !KEPT.includes(n));
-    expect(aliased).toHaveLength(99);
+    expect(aliased).toHaveLength(120);
+    expect(aliased).toEqual(
+      expect.arrayContaining([
+        "Workspace",
+        "Onboarding",
+        "OnboardingStepProgress",
+        "OnboardingStep",
+        "OnboardingSkippedStepsSet",
+      ]),
+    );
 
     const { exports, aliases, declaredIn } = publicNames();
     const exportedSchemas = all.filter((n) => exports.has(n)).sort();
     expect(exportedSchemas).toEqual([...aliased, ...KEPT, ...OWN].sort());
     for (const name of aliased) {
       expect(aliases.get(name), name).toBe(`Schemas["${name}"]`);
+    }
+    for (const name of NOT_EXPOSED) {
+      expect(exports.has(name), name).toBe(false);
+      expect(aliases.has(name), name).toBe(false);
     }
     for (const name of KEPT) {
       expect(aliases.get(name) ?? "", name).not.toMatch(/^Schemas\[/);
@@ -621,7 +792,7 @@ describe.skipIf(spec === null)("the query types", () => {
     const withQuery = [...queriesOf(spec).keys()].filter((id) =>
       Object.hasOwn(OPERATIONS, id),
     );
-    expect(withQuery).toHaveLength(18);
+    expect(withQuery).toHaveLength(24);
     const { exports, aliases } = publicNames();
     const exportedQueries = [...exports]
       .filter((n) => n.endsWith("Query"))
@@ -660,6 +831,7 @@ describe.skipIf(spec === null)("the public names that are not schemas", () => {
         "TokenProvider",
         "decimal",
         "getSharedReport",
+        "toImportMapping",
       ].sort(),
     );
     // A type-only export has no value at run time, so it cannot be constructed.
@@ -673,6 +845,7 @@ describe.skipIf(spec === null)("the public names that are not schemas", () => {
         "IngestError",
         "decimal",
         "getSharedReport",
+        "toImportMapping",
       ].sort(),
     );
   });

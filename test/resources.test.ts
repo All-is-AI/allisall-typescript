@@ -36,15 +36,23 @@ import {
   type FetchLike,
   getSharedReport,
   type IdempotentRequestOptions,
+  type Import,
+  type ImportDelimiter,
+  type ImportMapping,
   type ImportUpload,
   type IngestSummary,
   type Page,
   type PagePromise,
   type PublicReport,
+  type RenewalTerm,
   type ReportList,
+  type ReportPatch,
+  type ReportState,
   type ReportSummary,
   type ReportWithPreview,
   type RequestOptions,
+  toImportMapping,
+  type WorkspaceCalculationList,
 } from "../src/index.js";
 import { Page as PageClass } from "../src/pagination.js";
 import { call, callPage, pageArgs, request } from "../src/request.js";
@@ -198,7 +206,59 @@ const ROWS: readonly Row[] = [
       ),
     sent: "/v1/clients/id-1/events?from=2026-08-01T00%3A00%3A00.000Z&to=2026-09-01T00%3A00%3A00Z&page=3",
   },
+  {
+    id: "listEvents",
+    method: "events.list",
+    run: (c, o) =>
+      c.events.list(
+        {
+          import_batch_id: ID,
+          source: "csv",
+          sort: "cost",
+          dir: "asc",
+          page: 2,
+        },
+        o,
+      ),
+    sent: "/v1/events?import_batch_id=id-1&source=csv&sort=cost&dir=asc&page=2",
+  },
+  {
+    id: "getEventSummary",
+    method: "events.getSummary",
+    run: (c, o) =>
+      c.events.getSummary(
+        {
+          from: "2026-08-01T00:00:00+09:00",
+          to: "2026-09-01T00:00:00+09:00",
+          as_of: "2026-09-02T00:00:00Z",
+        },
+        o,
+      ),
+    sent: "/v1/events/summary?from=2026-08-01T00%3A00%3A00%2B09%3A00&to=2026-09-01T00%3A00%3A00%2B09%3A00&as_of=2026-09-02T00%3A00%3A00Z",
+  },
+  {
+    id: "listEventArrivals",
+    method: "events.listArrivals",
+    run: (c, o) =>
+      c.events.listArrivals(
+        { since: new Date("2026-09-01T12:00:00Z"), limit: 1 },
+        o,
+      ),
+    sent: "/v1/events/arrivals?since=2026-09-01T12%3A00%3A00.000Z&limit=1",
+  },
   // imports
+  {
+    id: "listImports",
+    method: "imports.list",
+    run: (c, o) => c.imports.list({ limit: 5, page: 2 }, o),
+    sent: "/v1/imports?limit=5&page=2",
+  },
+  {
+    id: "getImport",
+    method: "imports.get",
+    run: (c, o) => c.imports.get(ID, o),
+    sent: "/v1/imports/id-1",
+  },
   {
     id: "previewImport",
     method: "imports.preview",
@@ -498,6 +558,16 @@ const ROWS: readonly Row[] = [
     sent: "/v1/clients/id-1/calculations?limit=1",
   },
   {
+    id: "listCalculations",
+    method: "calculations.list",
+    run: (c, o) =>
+      c.calculations.list(
+        { client_id: ID, state: "published", month: "2026-08", page: 2 },
+        o,
+      ),
+    sent: "/v1/calculations?client_id=id-1&state=published&month=2026-08&page=2",
+  },
+  {
     id: "getCalculation",
     method: "calculations.get",
     run: (c, o) => c.calculations.get(ID, o),
@@ -550,6 +620,12 @@ const ROWS: readonly Row[] = [
     method: "reports.listForCalculation",
     run: (c, o) => c.reports.listForCalculation(ID, undefined, o),
     sent: "/v1/calculations/id-1/reports",
+  },
+  {
+    id: "listReports",
+    method: "reports.list",
+    run: (c, o) => c.reports.list({ client_id: ID, state: "shared" }, o),
+    sent: "/v1/reports?client_id=id-1&state=shared",
   },
   {
     id: "getReport",
@@ -627,6 +703,31 @@ const ROWS: readonly Row[] = [
     method: "health.get",
     run: (c, o) => c.health.get(o),
     sent: "/healthz",
+  },
+  // workspace
+  {
+    id: "getWorkspace",
+    method: "workspace.get",
+    run: (c, o) => c.workspace.get(o),
+    sent: "/v1/workspace",
+  },
+  // onboarding
+  {
+    id: "getOnboarding",
+    method: "onboarding.get",
+    run: (c, o) => c.onboarding.get(o),
+    sent: "/v1/onboarding",
+  },
+  {
+    id: "setOnboardingSkippedSteps",
+    method: "onboarding.setSkippedSteps",
+    run: (c, o) =>
+      c.onboarding.setSkippedSteps(
+        { steps: ["add_agent", "bring_in_data"] },
+        o,
+      ),
+    sent: "/v1/onboarding/skipped-steps",
+    body: '{"steps":["add_agent","bring_in_data"]}',
   },
 ];
 
@@ -723,7 +824,7 @@ describe("the table of methods below", () => {
     const clientOperations = Object.keys(OPERATIONS)
       .filter((id) => id !== "getSharedReport")
       .sort();
-    expect(clientOperations).toHaveLength(57);
+    expect(clientOperations).toHaveLength(67);
     expect(ids).toEqual(clientOperations);
   });
 });
@@ -795,11 +896,11 @@ describe("every method", () => {
     },
   );
 
-  it("decode money on 27 of the methods, and getSharedReport on the 28th", () => {
+  it("decode money on 30 of the methods, and getSharedReport on the 31st", () => {
     // The answers above hold money only where the operation returns some.
     expect(
       ROWS.filter((r) => OPERATIONS[r.id].responseMoney.length > 0),
-    ).toHaveLength(27);
+    ).toHaveLength(30);
     expect(OPERATIONS.getSharedReport.responseMoney.length).toBeGreaterThan(0);
   });
 });
@@ -859,6 +960,8 @@ const GROUPS = [
   "dashboard",
   "apiKeys",
   "health",
+  "workspace",
+  "onboarding",
 ];
 
 /** The tag and path of each operation in a document. */
@@ -981,22 +1084,41 @@ const SHARE_TOKEN = new Set(
 );
 
 describe("the client's groups", () => {
-  it("are the thirteen of the API's tags with a client method, without sharedReports", () => {
+  it("are the fifteen of the API's tags with a client method, without sharedReports", () => {
     const c = client(recorder().fetch);
     expect(Object.keys(c).sort()).toEqual([...GROUPS].sort());
   });
 });
 
 describe.skipIf(spec === null)("the method names", () => {
-  it("are the naming rule's name for each of the 58 operations, both ways, with the share-token one a function", () => {
+  it("are the naming rule's name for each of the 68 operations, both ways, with the share-token one a function", () => {
     const actual = methodsOf(client(recorder().fetch));
     const expected = expectedMethods(
       Object.keys(OPERATIONS),
       spec,
       SHARE_TOKEN,
     );
-    expect(expected).toHaveLength(57);
+    expect(expected).toHaveLength(67);
     expect(difference(expected, actual)).toEqual({ missing: [], extra: [] });
+    // The 0.3 and 0.4 operations take the rule's names, with no new
+    // exception: listCalculations, listReports, listImports and listEvents
+    // drop their noun, getImport becomes imports.get, and getEventSummary
+    // and listEventArrivals become events.getSummary and
+    // events.listArrivals (question 18).
+    expect(actual).toEqual(
+      expect.arrayContaining([
+        "workspace.get",
+        "onboarding.get",
+        "onboarding.setSkippedSteps",
+        "calculations.list",
+        "reports.list",
+        "imports.list",
+        "imports.get",
+        "events.list",
+        "events.getSummary",
+        "events.listArrivals",
+      ]),
+    );
     // The one ShareToken operation is the standalone function.
     expect([...SHARE_TOKEN]).toEqual(["getSharedReport"]);
     expect(typeof getSharedReport).toBe("function");
@@ -1038,7 +1160,7 @@ describe.skipIf(spec === null)("the method names", () => {
     if (typeof table !== "string") throw new Error("no operation table");
     const body = table.slice(table.indexOf("export const OPERATIONS"));
     const ids = [...body.matchAll(/^ {2}(\w+): \{$/gm)].map((m) => m[1] ?? "");
-    expect(ids).toHaveLength(59);
+    expect(ids).toHaveLength(69);
 
     const actual = methodsOf(client(recorder().fetch));
     const expected = expectedMethods(ids, mutated, SHARE_TOKEN);
@@ -1046,6 +1168,53 @@ describe.skipIf(spec === null)("the method names", () => {
       missing: ["agents.listWidgets"],
       extra: [],
     });
+  });
+});
+
+// ---- The guided setup ----
+
+describe("onboarding.get", () => {
+  it("keeps a step the SDK does not list, in current_step and in a step's step", async () => {
+    const answer = {
+      steps: [
+        { step: "add_client", completed: true, skipped_at: null },
+        {
+          step: "a_step_added_later",
+          completed: false,
+          skipped_at: "2026-11-02T10:05:00Z",
+        },
+      ],
+      current_step: "a_step_added_later",
+      has_published: false,
+    };
+    const { fetch } = recorder([() => json(200, answer)]);
+    const progress = await client(fetch).onboarding.get();
+    expect(progress.current_step).toBe("a_step_added_later");
+    expect(progress.steps.map((s) => s.step)).toEqual([
+      "add_client",
+      "a_step_added_later",
+    ]);
+    expect(progress).toEqual(answer);
+  });
+
+  it("keeps a null current_step", async () => {
+    const { fetch } = recorder([
+      () => json(200, { steps: [], current_step: null, has_published: true }),
+    ]);
+    const progress = await client(fetch).onboarding.get();
+    expect(progress.current_step).toBeNull();
+  });
+});
+
+describe("onboarding.setSkippedSteps", () => {
+  it("sends an empty set as [], which clears every skip", async () => {
+    const { fetch, sent } = recorder([
+      () => json(200, { steps: [], current_step: null, has_published: false }),
+    ]);
+    await client(fetch).onboarding.setSkippedSteps({ steps: [] });
+    const req = only(sent);
+    expect(req.method).toBe("PUT");
+    expect(req.text).toBe('{"steps":[]}');
   });
 });
 
@@ -1125,30 +1294,220 @@ describe("clients.list", () => {
   });
 });
 
+describe("valueModels.get", () => {
+  it("returns archived_at as the instant's text, or null", async () => {
+    const model = { id: ID, status: "archived", line_items: [] };
+    const { fetch } = recorder([
+      () => json(200, { ...model, archived_at: "2026-08-02T04:15:00Z" }),
+      () => json(200, { ...model, status: "active", archived_at: null }),
+    ]);
+    const c = client(fetch);
+    const archived = await c.valueModels.get(ID);
+    expectTypeOf(archived.archived_at).toEqualTypeOf<string | null>();
+    expect(archived.archived_at).toBe("2026-08-02T04:15:00Z");
+    expect((await c.valueModels.get(ID)).archived_at).toBeNull();
+  });
+});
+
+/** A report summary as a 0.4 server sends it. */
+const REPORT_SUMMARY = {
+  id: "r-1",
+  calculation_id: ID,
+  client_id: "c-1",
+  client_name: "Acme Logistics",
+  period: { from: "2026-08-01T00:00:00Z", to: "2026-09-01T00:00:00Z" },
+  state: "draft",
+  letterhead_client_name: "Acme",
+  letterhead_workspace_name: "Northwind",
+  note: "",
+  share_token: null,
+  shared_at: null,
+  revoked_at: null,
+  first_viewed_at: null,
+  last_viewed_at: null,
+  created_at: "2026-09-01T00:00:00Z",
+} satisfies ReportSummary;
+
+describe("a client's renewal term", () => {
+  it("is sent on create and update, null clears it, and the client returns it", async () => {
+    const answer = (renewal_term: string | null) => () =>
+      json(200, { id: ID, renewal_date: "2027-03-31", renewal_term });
+    const { fetch, sent } = recorder([
+      answer("annual"),
+      answer("monthly"),
+      answer(null),
+    ]);
+    const c = client(fetch);
+    const created = await c.clients.create({
+      name: "Acme",
+      status: "active",
+      renewal_date: "2027-03-31",
+      renewal_term: "annual",
+    });
+    expectTypeOf(created.renewal_term).toEqualTypeOf<
+      RenewalTerm | (string & {}) | null
+    >();
+    expect(created.renewal_term).toBe("annual");
+    expect(
+      (await c.clients.update(ID, { renewal_term: "monthly" })).renewal_term,
+    ).toBe("monthly");
+    expect(
+      (await c.clients.update(ID, { renewal_term: null })).renewal_term,
+    ).toBeNull();
+    expect(sent.map((r) => r.text)).toEqual([
+      '{"name":"Acme","status":"active","renewal_date":"2027-03-31","renewal_term":"annual"}',
+      '{"renewal_term":"monthly"}',
+      '{"renewal_term":null}',
+    ]);
+  });
+});
+
 describe("reports.listForCalculation", () => {
   it("gives each report as a summary, without disclosures", async () => {
-    const summary = {
-      id: "r-1",
-      calculation_id: ID,
-      client_name: "Acme",
-      workspace_name: "Northwind",
-      note: "",
-      share_token: null,
-      shared_at: null,
-      revoked_at: null,
-      first_viewed_at: null,
-      last_viewed_at: null,
-      created_at: "2026-09-01T00:00:00Z",
-    };
     const { fetch, sent } = recorder([
-      () => json(200, { data: [summary], has_more: false, next_cursor: null }),
+      () =>
+        json(200, {
+          data: [REPORT_SUMMARY],
+          has_more: false,
+          next_cursor: null,
+        }),
     ]);
     const page = await client(fetch).reports.listForCalculation(ID);
-    expect(page.data).toEqual([summary]);
+    expect(page.data).toEqual([REPORT_SUMMARY]);
     expect(page.data[0]).not.toHaveProperty("disclosures");
     expect(new URL(only(sent).url).pathname).toBe(
       "/v1/calculations/id-1/reports",
     );
+  });
+});
+
+/** An import as a 0.4 server reads it back, with the mapping it ran with. */
+const IMPORT = {
+  id: "imp-1",
+  filename: "august.csv",
+  total_rows: 3,
+  accepted: 2,
+  duplicates: 1,
+  rejected: 0,
+  created_at: "2026-09-01T00:00:00Z",
+  mapping: {
+    columns: { timestamp: "Time", agent_key: "Agent" },
+    constants: { category: "task" },
+    timezone: "Asia/Tokyo",
+    delimiter: ";",
+  },
+} satisfies Import;
+
+describe("imports.get and toImportMapping", () => {
+  it("sends the mapping an import ran with as the next commit's mapping", async () => {
+    const { fetch, sent } = recorder([
+      () => json(200, IMPORT),
+      () =>
+        json(200, {
+          batch_id: "imp-2",
+          accepted: 0,
+          duplicates: 0,
+          rejected: 0,
+          errors: [],
+          errors_truncated: false,
+        }),
+    ]);
+    const c = client(fetch);
+    const read = await c.imports.get("imp-1");
+    const mapping = toImportMapping(read.mapping);
+    expectTypeOf(mapping).toEqualTypeOf<ImportMapping>();
+    await c.imports.commit({ mapping, file: "Time;Agent\n" });
+
+    expect(sent).toHaveLength(2);
+    const form = instance(sent[1]?.body, FormData);
+    const part = form.get("mapping");
+    const text = part instanceof Blob ? await part.text() : part;
+    expect(JSON.parse(String(text))).toEqual(IMPORT.mapping);
+    // A copy: changing the result leaves the read mapping as it was.
+    mapping.columns = {};
+    expect(read.mapping.columns).toEqual(IMPORT.mapping.columns);
+  });
+
+  it("keeps a delimiter the SDK does not list, on the read and on the way back", async () => {
+    const unlisted = {
+      ...IMPORT,
+      mapping: { ...IMPORT.mapping, delimiter: "|" },
+    };
+    const { fetch } = recorder([() => json(200, unlisted)]);
+    const read = await client(fetch).imports.get("imp-1");
+    expectTypeOf(read.mapping.delimiter).toEqualTypeOf<
+      ImportDelimiter | (string & {})
+    >();
+    expect(read.mapping.delimiter).toBe("|");
+    expect(toImportMapping(read.mapping)).toEqual(unlisted.mapping);
+  });
+});
+
+describe("reports.list", () => {
+  it("keeps a state the SDK does not list, as the server sent it", async () => {
+    const unknown = { ...REPORT_SUMMARY, state: "archived" };
+    const { fetch } = recorder([
+      () =>
+        json(200, {
+          page: null,
+          total: null,
+          data: [unknown, REPORT_SUMMARY],
+          has_more: false,
+          next_cursor: null,
+        }),
+    ]);
+    const page = await client(fetch).reports.list();
+    expectTypeOf(page.data[0]?.state).toEqualTypeOf<
+      ReportState | (string & {}) | undefined
+    >();
+    expect(page.data.map((r) => r.state)).toEqual(["archived", "draft"]);
+    expect(page.data[0]).toEqual(unknown);
+  });
+});
+
+describe("reports.update", () => {
+  it("sends the letterhead under its new names, and the type refuses the old ones", async () => {
+    const { fetch, sent } = recorder([
+      () => json(200, { ...REPORT_SUMMARY, disclosures: [] }),
+    ]);
+    await client(fetch).reports.update(ID, {
+      letterhead_client_name: "Acme Holdings",
+      letterhead_workspace_name: "Northwind Partners",
+    });
+    expect(only(sent).text).toBe(
+      '{"letterhead_client_name":"Acme Holdings","letterhead_workspace_name":"Northwind Partners"}',
+    );
+    // @ts-expect-error: the letterhead's old name is no member of ReportPatch.
+    const old: ReportPatch = { client_name: "Acme" };
+    // @ts-expect-error: nor is the other.
+    const older: ReportPatch = { workspace_name: "Northwind" };
+    expect([old, older]).toHaveLength(2);
+  });
+});
+
+describe("calculations.list", () => {
+  it("gives each calculation with its client's name and its coverage findings", async () => {
+    const item = {
+      id: "calc-1",
+      client_id: "c-1",
+      client_name: "Acme Logistics",
+      coverage_findings: 2,
+    };
+    const { fetch } = recorder([
+      () =>
+        json(200, {
+          page: 1,
+          total: 1,
+          data: [item],
+          has_more: false,
+          next_cursor: null,
+        }),
+    ]);
+    const page = await client(fetch).calculations.list({ page: 1 });
+    expectTypeOf(page.body).toEqualTypeOf<WorkspaceCalculationList>();
+    expect(page.data[0]?.client_name).toBe("Acme Logistics");
+    expect(page.data[0]?.coverage_findings).toBe(2);
+    expect(page.body.total).toBe(1);
   });
 });
 

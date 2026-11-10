@@ -19,9 +19,11 @@ import { DashboardOperations } from "./resources/dashboard.js";
 import { Events } from "./resources/events.js";
 import { HealthOperations } from "./resources/health.js";
 import { Imports } from "./resources/imports.js";
+import { OnboardingOperations } from "./resources/onboarding.js";
 import { OutcomeTypes } from "./resources/outcome-types.js";
 import { Reports } from "./resources/reports.js";
 import { ValueModels } from "./resources/value-models.js";
+import { WorkspaceOperations } from "./resources/workspace.js";
 import { globalValue, isBrowser, readEnv, userAgent } from "./runtime.js";
 import {
   BROWSER_KEY_MESSAGE,
@@ -250,6 +252,10 @@ export class Allisall {
   readonly apiKeys: ApiKeys;
   /** The API's liveness. */
   readonly health: HealthOperations;
+  /** The workspace the credential belongs to. */
+  readonly workspace: WorkspaceOperations;
+  /** The guided setup's progress, and the steps skipped in it. */
+  readonly onboarding: OnboardingOperations;
 
   /**
    * @throws {AllisallError} when there is no credential, or both an API key
@@ -277,5 +283,7 @@ export class Allisall {
     this.dashboard = new DashboardOperations(config);
     this.apiKeys = new ApiKeys(config);
     this.health = new HealthOperations(config);
+    this.workspace = new WorkspaceOperations(config);
+    this.onboarding = new OnboardingOperations(config);
   }
 }

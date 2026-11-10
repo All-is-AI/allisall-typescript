@@ -27,6 +27,13 @@ export class Agents {
    * Lists agents. Await the result for one page; iterate it with
    * `for await` for every agent of every page.
    *
+   * Pass `page` for a numbered page: its `body` then holds `page` and
+   * `total`. Only that first page is counted; every later page of a walk
+   * continues by cursor from it, and its `page` and `total` are `null`. To
+   * show another numbered page, call this method again with its `page`
+   * rather than `getNextPage()`. A `page` past the end has no items, and the
+   * walk ends there.
+   *
    * Needs the `read` scope. Operation `listAgents`.
    */
   list(

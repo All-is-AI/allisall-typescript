@@ -149,6 +149,25 @@ function buildURL(
     for (const [name, value] of Object.entries(query)) {
       // An absent member is left out; the SDK writes no parameter of its own.
       if (value === undefined) continue;
+      if (operation.repeatable.includes(name)) {
+        // One parameter per item, in order. Only an array is accepted, so a
+        // lone string is refused too; an empty array has no faithful form,
+        // because leaving the parameter out means every value.
+        if (!Array.isArray(value)) {
+          throw new TypeError(
+            `allisall: the query parameter ${name} takes an array of values`,
+          );
+        }
+        if (value.length === 0) {
+          throw new TypeError(
+            `allisall: the query parameter ${name} is an empty array; leave it out to match every value`,
+          );
+        }
+        for (const item of value) {
+          url.searchParams.append(name, queryText(name, item));
+        }
+        continue;
+      }
       url.searchParams.append(name, queryText(name, value));
     }
   }
@@ -447,9 +466,22 @@ export function requestPage<K extends OperationId>(
     );
     // A list operation's reader checked the envelope.
     const list = body as Body;
+    const pinnedName = PINNED_ECHO[id];
+    const pinnedValue: unknown =
+      pinnedName === undefined ? undefined : Reflect.get(list, pinnedName);
     const next =
       list.has_more && typeof list.next_cursor === "string"
-        ? nextQuery(query, list.next_cursor)
+        ? nextQuery(
+            query,
+            list.next_cursor,
+            // An empty or non-string echo is not pinned: the API refuses an
+            // empty parameter.
+            pinnedName !== undefined &&
+              typeof pinnedValue === "string" &&
+              pinnedValue !== ""
+              ? { name: pinnedName, value: pinnedValue }
+              : undefined,
+          )
         : undefined;
     return new Page<Item, Body>(
       list,
@@ -499,11 +531,32 @@ function overlay(
   return merged;
 }
 
-/** The query of the next page: the same members, `page` dropped, `cursor` set. */
-function nextQuery(query: object | undefined, cursor: string): object {
+/**
+ * The query member a walk pins to its first page's answer, by operation:
+ * when the caller's query leaves the member out, every later page sends the
+ * value the first page's body echoed. On the renewals list it is `today`,
+ * so a walk that crosses UTC midnight reads every page under one date.
+ */
+export const PINNED_ECHO: { readonly [K in OperationId]?: string } = {
+  listRenewals: "today",
+};
+
+/**
+ * The query of the next page: the same members, `page` dropped, `cursor`
+ * set, and the pinned member, when the caller left it out, set to the value
+ * the first page echoed.
+ */
+function nextQuery(
+  query: object | undefined,
+  cursor: string,
+  pinned?: { readonly name: string; readonly value: unknown },
+): object {
   const next: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(query ?? {})) {
     if (name !== "page") next[name] = value;
+  }
+  if (pinned !== undefined && next[pinned.name] === undefined) {
+    next[pinned.name] = pinned.value;
   }
   next.cursor = cursor;
   return next;

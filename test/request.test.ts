@@ -22,7 +22,7 @@ import {
 } from "../src/errors.js";
 import { OPERATIONS, type OperationId } from "../src/generated/operations.js";
 import type { ClientOptions, FetchLike } from "../src/index.js";
-import type { Page, PagePromise } from "../src/pagination.js";
+import type { ListBody, Page, PagePromise } from "../src/pagination.js";
 import { request, requestPage } from "../src/request.js";
 import type {
   Client,
@@ -30,6 +30,10 @@ import type {
   ClientEventList,
   ClientList,
   CostLineItem,
+  EventCategory,
+  EventSource,
+  ListRenewalsQuery,
+  RenewalTerm,
 } from "../src/types.js";
 import { event, instance, json, problem, UUID_V4 } from "./helpers.js";
 
@@ -485,11 +489,21 @@ describe("retries, on a fake clock", () => {
   it("names 14 operations it never retries, every one in the table", () => {
     for (const id of NOT_RETRIED) expect(OPERATIONS).toHaveProperty(id);
     expect(NOT_RETRIED.size).toBe(14);
-    expect(ids).toHaveLength(57);
-    // getSharedReport, a GET, is the 58th operation and is eligible.
+    expect(ids).toHaveLength(67);
+    // getSharedReport, a GET, is the 68th operation and is eligible.
     const all = Object.keys(OPERATIONS) as OperationId[];
-    expect(all).toHaveLength(58);
-    expect(all.filter((id) => !NOT_RETRIED.has(id))).toHaveLength(44);
+    expect(all).toHaveLength(68);
+    expect(all.filter((id) => !NOT_RETRIED.has(id))).toHaveLength(54);
+    // The guided-setup operations are eligible: two GETs, and a PUT that
+    // replaces a whole set.
+    for (const id of [
+      "getWorkspace",
+      "getOnboarding",
+      "setOnboardingSkippedSteps",
+    ] as const) {
+      expect(ids).toContain(id);
+      expect(NOT_RETRIED.has(id)).toBe(false);
+    }
   });
 
   it.each(ids)(
@@ -989,7 +1003,14 @@ function queryOf(req: Sent): [string, string][] {
   return [...new URL(req.url).searchParams.entries()];
 }
 
+/** The members a numbered page's body adds to the list envelope. */
+interface PagedBody extends ListBody {
+  page: number | null;
+  total: number | null;
+}
+
 describe("lists", () => {
+  const someId = "7b0e8c1a-2f3d-4e5a-9b6c-1d2e3f4a5b6c";
   it("walks every page with for await, sending the filters on every request and each page's own cursor", async () => {
     const { fetch, sent } = recorder([
       page([{ id: "a" }, { id: "b" }], "c1"),
@@ -1050,6 +1071,140 @@ describe("lists", () => {
     ]);
     expect(at(sent, 1).url).toContain("/v1/clients/c1/events?");
   });
+
+  // The keyset lists that take `page`: with `q` on the first four, with
+  // filters on all but the imports, whose `limit` stands in for one. Each
+  // first page answers in page mode, with a `total`; the next answers in
+  // cursor mode, with none, as the server does. A walk that kept `page`
+  // would send it twice, and one that dropped a filter would lose it on the
+  // second.
+  const pagedLists: {
+    name: string;
+    path: string;
+    first: (client: Allisall) => PagePromise<{ id: string }, PagedBody>;
+    filters: [string, string][];
+  }[] = [
+    {
+      name: "clients.list",
+      path: "/v1/clients?",
+      first: (c) => c.clients.list({ q: "acme", status: "active", page: 3 }),
+      filters: [
+        ["q", "acme"],
+        ["status", "active"],
+      ],
+    },
+    {
+      name: "agents.list",
+      path: "/v1/agents?",
+      first: (c) => c.agents.list({ q: "bot", status: "paused", page: 3 }),
+      filters: [
+        ["q", "bot"],
+        ["status", "paused"],
+      ],
+    },
+    {
+      name: "valueModels.list",
+      path: "/v1/value-models?",
+      first: (c) =>
+        c.valueModels.list({
+          q: "base",
+          status: "archived",
+          client_id: someId,
+          page: 3,
+        }),
+      filters: [
+        ["q", "base"],
+        ["status", "archived"],
+        ["client_id", someId],
+      ],
+    },
+    {
+      name: "cost.listLineItems",
+      path: "/v1/cost-line-items?",
+      first: (c) =>
+        c.cost.listLineItems({
+          q: "gpu",
+          target_kind: "agent",
+          target_id: someId,
+          page: 3,
+        }),
+      filters: [
+        ["q", "gpu"],
+        ["target_kind", "agent"],
+        ["target_id", someId],
+      ],
+    },
+    {
+      name: "calculations.list",
+      path: "/v1/calculations?",
+      first: (c) =>
+        c.calculations.list({
+          client_id: someId,
+          state: "published",
+          month: "2026-08",
+          page: 3,
+        }),
+      filters: [
+        ["client_id", someId],
+        ["state", "published"],
+        ["month", "2026-08"],
+      ],
+    },
+    {
+      name: "reports.list",
+      path: "/v1/reports?",
+      first: (c) =>
+        c.reports.list({ client_id: someId, state: "shared", page: 3 }),
+      filters: [
+        ["client_id", someId],
+        ["state", "shared"],
+      ],
+    },
+    {
+      name: "imports.list",
+      path: "/v1/imports?",
+      first: (c) => c.imports.list({ limit: 1, page: 3 }),
+      filters: [["limit", "1"]],
+    },
+  ];
+
+  it.each(pagedLists)(
+    "$name: a walk started at page 3 sends page first, then the cursor without it, keeping q and the filters",
+    async ({ path, first, filters }) => {
+      const { fetch, sent } = recorder([
+        page([{ id: "a" }], "after-a", { page: 3, total: 7 }),
+        page([{ id: "b" }], null, { page: null, total: null }),
+      ]);
+      const client = new Allisall({ apiKey: "aia_k", fetch });
+
+      const one = await first(client);
+      expect(one.body.page).toBe(3);
+      expect(one.body.total).toBe(7);
+      const two = await one.getNextPage();
+      expect(two.body.page).toBeNull();
+      expect(two.body.total).toBeNull();
+
+      expect(sent.map(queryOf)).toEqual([
+        [...filters, ["page", "3"]],
+        [...filters, ["cursor", "after-a"]],
+      ]);
+      expect(at(sent, 0).url).toContain(path);
+
+      // for await follows the same requests.
+      const walked = recorder([
+        page([{ id: "a" }], "after-a", { page: 3, total: 7 }),
+        page([{ id: "b" }], null, { page: null, total: null }),
+      ]);
+      const ids: string[] = [];
+      for await (const item of first(
+        new Allisall({ apiKey: "aia_k", fetch: walked.fetch }),
+      )) {
+        ids.push(item.id);
+      }
+      expect(ids).toEqual(["a", "b"]);
+      expect(walked.sent.map(queryOf)).toEqual(sent.map(queryOf));
+    },
+  );
 
   it("resolves await with one page, its body, and the next page on request", async () => {
     const { fetch, sent } = recorder([
@@ -1181,6 +1336,310 @@ describe("lists", () => {
 });
 
 // ---- A path-only base URL ----
+
+describe("the workspace events", () => {
+  const AS_OF = "2026-09-02T03:04:05.678901Z";
+  const period = { from: "2026-08-01T00:00:00Z", to: "2026-09-01T00:00:00Z" };
+  /** One page of `events.list` or `events.listArrivals`, as the API sends it. */
+  const eventsPage =
+    (ids: string[], next: string | null, extra: Record<string, unknown> = {}) =>
+    (): Response =>
+      json(200, {
+        client_id: null,
+        period,
+        currency: "JPY",
+        as_of: AS_OF,
+        page: null,
+        total: null,
+        total_capped: null,
+        data: ids.map((id) => ({ id })),
+        has_more: next !== null,
+        next_cursor: next,
+        ...extra,
+      });
+
+  it("walks events.list by the cursor, which carries as_of, sending no as_of of its own", async () => {
+    const { fetch, sent } = recorder([
+      eventsPage(["a", "b"], "v2-after-b"),
+      eventsPage(["c"], null),
+    ]);
+    const ids: string[] = [];
+    const first = new Allisall({ apiKey: "aia_k", fetch }).events.list({
+      ...period,
+      category: "task",
+      limit: 2,
+    });
+    for await (const event of first) ids.push(event.id);
+    expect(ids).toEqual(["a", "b", "c"]);
+    const filters: [string, string][] = [
+      ["from", period.from],
+      ["to", period.to],
+      ["category", "task"],
+      ["limit", "2"],
+    ];
+    expect(sent.map(queryOf)).toEqual([
+      filters,
+      [...filters, ["cursor", "v2-after-b"]],
+    ]);
+    expect((await first).body.as_of).toBe(AS_OF);
+  });
+
+  it("keeps a caller's as_of on every request of a walk, beside the cursor", async () => {
+    const { fetch, sent } = recorder([
+      eventsPage(["a"], "v2-after-a"),
+      eventsPage(["b"], null),
+    ]);
+    for await (const _ of new Allisall({ apiKey: "aia_k", fetch }).events.list({
+      ...period,
+      as_of: AS_OF,
+    })) {
+      // Walk every page.
+    }
+    expect(sent.map((r) => new URL(r.url).searchParams.get("as_of"))).toEqual([
+      AS_OF,
+      AS_OF,
+    ]);
+    expect(new URL(at(sent, 1).url).searchParams.get("cursor")).toBe(
+      "v2-after-a",
+    );
+  });
+
+  it("sorts in page mode, reads total_capped, and continues by the offset cursor without page", async () => {
+    const { fetch, sent } = recorder([
+      eventsPage(["a"], "offset-1", {
+        page: 1,
+        total: 10000,
+        total_capped: true,
+      }),
+      eventsPage(["b"], null),
+    ]);
+    const first = await new Allisall({ apiKey: "aia_k", fetch }).events.list({
+      ...period,
+      sort: "cost",
+      dir: "asc",
+      limit: 1,
+      page: 1,
+    });
+    expect([first.body.total, first.body.total_capped]).toEqual([10000, true]);
+    const second = await first.getNextPage();
+    expect([second.body.total, second.body.total_capped]).toEqual([null, null]);
+    const sortAndLimit: [string, string][] = [
+      ["from", period.from],
+      ["to", period.to],
+      ["sort", "cost"],
+      ["dir", "asc"],
+      ["limit", "1"],
+    ];
+    expect(sent.map(queryOf)).toEqual([
+      [...sortAndLimit, ["page", "1"]],
+      [...sortAndLimit, ["cursor", "offset-1"]],
+    ]);
+  });
+
+  it("polls listArrivals by sending the previous as_of as since, and reads count", async () => {
+    const NEXT = "2026-09-02T03:05:00Z";
+    const { fetch, sent } = recorder([
+      eventsPage(["new-1"], "arr-2", {
+        since: AS_OF,
+        as_of: NEXT,
+        count: 7,
+        count_capped: false,
+      }),
+      eventsPage(["new-2"], null, { since: AS_OF, as_of: NEXT, count: 7 }),
+    ]);
+    const c = new Allisall({ apiKey: "aia_k", fetch });
+    const poll = await c.events.listArrivals({ since: AS_OF, limit: 1 });
+    expect([poll.body.count, poll.body.count_capped]).toEqual([7, false]);
+    expect(poll.body.as_of).toBe(NEXT);
+    // The walk over that window keeps since; the cursor carries as_of.
+    await poll.getNextPage();
+    expect(sent.map(queryOf)).toEqual([
+      [
+        ["since", AS_OF],
+        ["limit", "1"],
+      ],
+      [
+        ["since", AS_OF],
+        ["limit", "1"],
+        ["cursor", "arr-2"],
+      ],
+    ]);
+  });
+
+  it("keeps a category and a source the SDK does not list, as sent", async () => {
+    const { fetch } = recorder([
+      eventsPage([], null, {
+        data: [{ id: "e1", category: "audit", source: "sftp" }],
+      }),
+    ]);
+    const page = await new Allisall({ apiKey: "aia_k", fetch }).events.list(
+      period,
+    );
+    const event = page.data[0];
+    expectTypeOf(event?.category).toEqualTypeOf<
+      EventCategory | (string & {}) | undefined
+    >();
+    expectTypeOf(event?.source).toEqualTypeOf<
+      EventSource | (string & {}) | undefined
+    >();
+    expect([event?.category, event?.source]).toEqual(["audit", "sftp"]);
+  });
+});
+
+describe("the renewals list", () => {
+  /** One page of the renewals list, as the API sends it. */
+  const renewalsPage =
+    (ids: string[], next: string | null, today: string, extra = {}) =>
+    (): Response =>
+      json(200, {
+        today,
+        page: null,
+        total: null,
+        data: ids.map((client_id) => ({ client_id })),
+        has_more: next !== null,
+        next_cursor: next,
+        ...extra,
+      });
+
+  it("sends a repeatable parameter as one parameter per item, in order", async () => {
+    const { fetch, sent } = recorder([renewalsPage([], null, "2026-11-10")]);
+    await new Allisall({ apiKey: "aia_k", fetch }).dashboard.listRenewals({
+      renewal_term: ["annual", "none"],
+      window: "next_30_days",
+    });
+    expect(queryOf(at(sent, 0))).toEqual([
+      ["renewal_term", "annual"],
+      ["renewal_term", "none"],
+      ["window", "next_30_days"],
+    ]);
+  });
+
+  it.each([
+    ["an empty array", [], /renewal_term is an empty array/],
+    ["a single string", "annual", /renewal_term takes an array/],
+  ])(
+    "refuses %s at a repeatable parameter before sending, naming it",
+    async (_, value, message) => {
+      const { fetch, sent } = recorder();
+      const caught = await rejection(
+        new Allisall({ apiKey: "aia_k", fetch }).dashboard.listRenewals({
+          // A caller without the types can pass any value here.
+          renewal_term: value as NonNullable<ListRenewalsQuery["renewal_term"]>,
+        }),
+      );
+      expect(caught).toBeInstanceOf(TypeError);
+      expect(String(caught)).toMatch(message);
+      expect(sent).toHaveLength(0);
+    },
+  );
+
+  it("still refuses an array at a parameter that is not repeatable", async () => {
+    const { fetch, sent } = recorder();
+    const caught = await rejection(
+      new Allisall({ apiKey: "aia_k", fetch }).dashboard.listRenewals({
+        // Only renewal_term takes an array.
+        window: ["overdue"] as unknown as NonNullable<
+          ListRenewalsQuery["window"]
+        >,
+      }),
+    );
+    expect(caught).toBeInstanceOf(TypeError);
+    expect(sent).toHaveLength(0);
+  });
+
+  it("pins the first page's today on every later page of a walk whose call sent none", async () => {
+    const { fetch, sent } = recorder([
+      renewalsPage(["c1"], "off-1", "2026-11-09"),
+      renewalsPage(["c2"], "off-2", "2026-11-10"),
+      renewalsPage(["c3"], null, "2026-11-10"),
+    ]);
+    const ids: string[] = [];
+    for await (const r of new Allisall({
+      apiKey: "aia_k",
+      fetch,
+    }).dashboard.listRenewals({ limit: 1 })) {
+      ids.push(r.client_id);
+    }
+    expect(ids).toEqual(["c1", "c2", "c3"]);
+    // The fixture's first page names a date unlike the test's own, and
+    // the later pages another, so a walk that sent the local date, or the
+    // latest page's, fails.
+    expect(sent.map(queryOf)).toEqual([
+      [["limit", "1"]],
+      [
+        ["limit", "1"],
+        ["today", "2026-11-09"],
+        ["cursor", "off-1"],
+      ],
+      [
+        ["limit", "1"],
+        ["today", "2026-11-09"],
+        ["cursor", "off-2"],
+      ],
+    ]);
+  });
+
+  it.each([
+    ["an empty", ""],
+    ["a non-string", 20261110],
+  ])("pins nothing when the first page echoes %s today", async (_, echoed) => {
+    const { fetch, sent } = recorder([
+      () =>
+        json(200, {
+          today: echoed,
+          data: [{ client_id: "c1" }],
+          has_more: true,
+          next_cursor: "off-1",
+        }),
+      renewalsPage(["c2"], null, "2026-11-10"),
+    ]);
+    for await (const _ of new Allisall({
+      apiKey: "aia_k",
+      fetch,
+    }).dashboard.listRenewals({ limit: 1 })) {
+      // Walk every page.
+    }
+    expect(sent.map(queryOf)).toEqual([
+      [["limit", "1"]],
+      [
+        ["limit", "1"],
+        ["cursor", "off-1"],
+      ],
+    ]);
+  });
+
+  it("sends a caller's own today unchanged on every page", async () => {
+    const { fetch, sent } = recorder([
+      renewalsPage(["c1"], "off-1", "2026-11-11"),
+      renewalsPage(["c2"], null, "2026-11-11"),
+    ]);
+    for await (const _ of new Allisall({
+      apiKey: "aia_k",
+      fetch,
+    }).dashboard.listRenewals({ today: "2026-11-11", limit: 1 })) {
+      // Walk every page.
+    }
+    expect(
+      sent.map((r) => new URL(r.url).searchParams.getAll("today")),
+    ).toEqual([["2026-11-11"], ["2026-11-11"]]);
+  });
+
+  it("keeps a renewal term the SDK does not list, as sent", async () => {
+    const { fetch } = recorder([
+      renewalsPage([], null, "2026-11-10", {
+        data: [{ client_id: "c1", renewal_term: "quarterly" }],
+      }),
+    ]);
+    const page = await new Allisall({
+      apiKey: "aia_k",
+      fetch,
+    }).dashboard.listRenewals();
+    expectTypeOf(page.data[0]?.renewal_term).toEqualTypeOf<
+      RenewalTerm | (string & {}) | null | undefined
+    >();
+    expect(page.data[0]?.renewal_term).toBe("quarterly");
+  });
+});
 
 describe("a path-only base URL", () => {
   function inBrowser(href: string | undefined): void {

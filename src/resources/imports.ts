@@ -2,9 +2,17 @@
 
 import type { ImportUpload } from "../multipart.js";
 import type { IdempotentRequestOptions, RequestOptions } from "../options.js";
-import { call } from "../request.js";
+import type { PagePromise } from "../pagination.js";
+import { call, callPage } from "../request.js";
 import type { TransportConfig } from "../transport.js";
-import type { ImportPreview, ImportResult } from "../types.js";
+import type {
+  Import,
+  ImportList,
+  ImportPreview,
+  ImportResult,
+  ImportSummary,
+  ListImportsQuery,
+} from "../types.js";
 
 /** The `imports` operations. */
 export class Imports {
@@ -12,6 +20,37 @@ export class Imports {
 
   constructor(config: TransportConfig) {
     this.#config = config;
+  }
+
+  /**
+   * Lists the workspace's imports, newest first, each with its counts.
+   * Await the result for one page; iterate it with `for await` for every
+   * import of every page.
+   *
+   * Pass `page` for a numbered page: its `body` then holds `page` and
+   * `total`. Only that first page is counted; every later page of a walk
+   * continues by cursor from it, and its `page` and `total` are `null`. To
+   * show another numbered page, call this method again with its `page`
+   * rather than `getNextPage()`. A `page` past the end has no items, and the
+   * walk ends there.
+   *
+   * Needs the `read` scope. Operation `listImports`.
+   */
+  list(
+    query?: ListImportsQuery,
+    options?: RequestOptions,
+  ): PagePromise<ImportSummary, ImportList> {
+    return callPage(this.#config, "listImports", { query, options });
+  }
+
+  /**
+   * Reads an import, with the mapping it ran with. Pass that mapping to
+   * `toImportMapping` to send it as the next import's mapping.
+   *
+   * Needs the `read` scope. Operation `getImport`.
+   */
+  get(id: string, options?: RequestOptions): Promise<Import> {
+    return call(this.#config, "getImport", { path: { id }, options });
   }
 
   /**

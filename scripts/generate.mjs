@@ -192,10 +192,30 @@ const BODY_KINDS = [
   ["application/json", "json"],
 ];
 
+/** The access policies of the operations the SDK calls. */
+export const SDK_POLICIES = [
+  "KeyOnly",
+  "KeyOrSession",
+  "SessionOnly",
+  "Public",
+  "ShareToken",
+];
+
+/**
+ * The access policies the SDK leaves out: no credential a client holds can
+ * call an operation under either. An invite token travels under its own
+ * scheme, and an invitee's session is admitted only until its workspace
+ * exists.
+ */
+export const EXCLUDED_POLICIES = ["InviteToken", "InviteeSession"];
+
 /**
  * The operation table. It holds every operation the SDK can call: each one
  * with a `2xx` response, so not a `HEAD`, which the SDK never sends, and not
- * an operation answering only a redirect, which the SDK never follows.
+ * an operation answering only a redirect, which the SDK never follows; and
+ * none under a policy in EXCLUDED_POLICIES. An operation under a policy in
+ * neither list is refused, so a new policy is decided before the SDK
+ * exposes or drops its operations.
  */
 export function operationTable(spec) {
   const table = [];
@@ -216,6 +236,12 @@ export function operationTable(spec) {
       const access = operation["x-access"];
       if (!isObject(access) || typeof access.policy !== "string") {
         throw new Error(`${id} has no x-access policy`);
+      }
+      if (EXCLUDED_POLICIES.includes(access.policy)) continue;
+      if (!SDK_POLICIES.includes(access.policy)) {
+        throw new Error(
+          `${id} has the x-access policy ${access.policy}, which the SDK neither calls nor leaves out`,
+        );
       }
       if (typeof operation["x-idempotent"] !== "boolean") {
         throw new Error(`${id} has no boolean x-idempotent`);
@@ -251,6 +277,10 @@ export function operationTable(spec) {
         idempotent: operation["x-idempotent"],
         list:
           typeof operation["x-list"] === "string" ? operation["x-list"] : null,
+        repeatable: (operation.parameters ?? [])
+          .map((p) => deref(spec, p))
+          .filter((p) => p.in === "query" && p["x-repeatable"] === true)
+          .map((p) => p.name),
         body,
         status: Number(success[0]),
         requestMoney: moneyPaths(spec, requestSchemas, `${id} request`),
@@ -345,6 +375,11 @@ export interface Operation {
   readonly idempotent: boolean;
   /** The list kind, or null when it is not a list. */
   readonly list: "keyset" | "offset" | null;
+  /**
+   * The query parameters the spec marks x-repeatable: each takes an array,
+   * written as one parameter per item.
+   */
+  readonly repeatable: readonly string[];
   /** The request body it takes. */
   readonly body: "none" | "json" | "merge-patch" | "multipart";
   /** The status of its success response. */

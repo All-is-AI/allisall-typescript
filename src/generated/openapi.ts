@@ -76,13 +76,57 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * List the workspace's events
+     * @description Every event in the workspace whose `timestamp` falls in the period, newest first, held still under an arrival limit, `as_of`: the list holds only events the API stored before it. A view's first request sends no `as_of`, and the response issues one. Send it on later requests, or follow `next_cursor`, which carries it, to read the same events while new ones arrive. Pass `page` for a numbered page with its `total`, or `cursor` to continue a walk, not both. `total` counts at most 10,000 events, and `total_capped` says when more matched. In the default order, `timestamp` descending, the cursor is a keyset position. Any other order needs `page`, or a cursor issued in that order, and its cursor is an offset; walk in the default order. Filtered by `import_batch_id`, the period is optional, `as_of` is issued but not applied, and `total` is exact. Otherwise an event appears a second or two after the API stores it, and later while a long request, such as a large import, is still in progress, so a read straight after an ingest may not include it yet.
+     */
+    get: operations["listEvents"];
     put?: never;
     /**
      * Ingest a batch of events
      * @description Stores 1 to 500 canonical events. A problem with one event rejects that event only; the response lists the problems of each rejected row, one `errors` entry per problem, within the limits `IngestResult` states. The batch is complete when the response is sent. Deduplication is per event, by `event_id` or the content hash, so a retried batch reports its stored rows as `duplicates`. This operation ignores `Idempotency-Key`. API keys only: a session is refused with `401`.
      */
     post: operations["ingestEvents"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/events/summary": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Count the workspace's events per day and per category
+     * @description Counts the events `GET /v1/events` holds under the same period, filters and `as_of`: in all, per day and per category. A day is 24 hours counted from `from`, so sending local midnight with its offset as `from` gives local days. The last day is shorter when the period is not a whole number of days. The period is required, also with `import_batch_id`. Without `import_batch_id`, an event is counted a second or two after the API stores it, and later while a long request, such as a large import, is still in progress, so a read straight after an ingest may not count it yet.
+     */
+    get: operations["getEventSummary"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/events/arrivals": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List the workspace's events as they arrived
+     * @description The workspace's events in the order the API stored them, newest first, below an arrival limit, `as_of`, which the response issues. Without `since`, the first page holds the latest arrivals. With `since`, the list holds the events that arrived at or after it, and `count` counts them. To poll, send each response's `as_of` as the next request's `since`: consecutive windows then meet without a gap or an overlap. `from` and `to` filter by `timestamp`, and each is optional on its own. An event falls below `as_of` a second or two after the API stores it, and later while a long request, such as a large import, is still in progress. A read straight after an ingest may not include it yet; poll with `since` until it does.
+     */
+    get: operations["listEventArrivals"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -116,13 +160,37 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    get?: never;
+    /**
+     * List imports
+     * @description The workspace's CSV imports, newest first, each with its counts. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both. Read an import for the mapping it ran with.
+     */
+    get: operations["listImports"];
     put?: never;
     /**
      * Import a CSV file
      * @description Stores the valid rows of a file and records an import batch. A problem with one row rejects that row only. The response lists the problems of the rejected rows, one `errors` entry per problem, up to the first 1,000; `errors_truncated` says when more were omitted, and the counts always cover the whole file. Events deduplicate as on `POST /v1/events`. `Idempotency-Key` protects the import batch record that each commit creates.
      */
     post: operations["commitImport"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/imports/{id}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read an import
+     * @description One CSV import, with its counts and the mapping it ran with. Send the mapping back as the next import's `mapping` to map a file of the same layout.
+     */
+    get: operations["getImport"];
+    put?: never;
+    post?: never;
     delete?: never;
     options?: never;
     head?: never;
@@ -136,7 +204,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List clients */
+    /**
+     * List clients
+     * @description The workspace's clients. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both. `q` searches the name.
+     */
     get: operations["listClients"];
     put?: never;
     /** Create a client */
@@ -365,7 +436,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List agents */
+    /**
+     * List agents
+     * @description The workspace's agents, including those ingest created. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both. `q` searches the name.
+     */
     get: operations["listAgents"];
     put?: never;
     /** Create an agent */
@@ -408,7 +482,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List value models */
+    /**
+     * List value models
+     * @description The workspace's value models across clients, archived ones included. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both. `q` searches the model's own name.
+     */
     get: operations["listValueModels"];
     put?: never;
     post?: never;
@@ -479,7 +556,10 @@ export interface paths {
       path?: never;
       cookie?: never;
     };
-    /** List cost line items */
+    /**
+     * List cost line items
+     * @description The workspace's cost line items. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both. `q` searches the label.
+     */
     get: operations["listCostLineItems"];
     put?: never;
     /** Create a cost line item */
@@ -520,6 +600,26 @@ export interface paths {
     get: operations["getPriceTable"];
     /** Replace the price table */
     put: operations["setPriceTable"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/calculations": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List calculations
+     * @description The workspace's calculations across clients, without snapshots, in the order a client's list uses. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both. `is_current` is decided among each client's own calculations for the period, before any filter or page applies.
+     */
+    get: operations["listCalculations"];
+    put?: never;
     post?: never;
     delete?: never;
     options?: never;
@@ -626,6 +726,26 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/reports": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * List reports
+     * @description The workspace's reports across calculations, newest first, each without its disclosures. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both.
+     */
+    get: operations["listReports"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/v1/reports/{id}": {
     parameters: {
       query?: never;
@@ -714,7 +834,7 @@ export interface paths {
     };
     /**
      * List renewal readiness
-     * @description Reads each client's latest published figures, whatever month the dashboard shows.
+     * @description Lists each active client with a renewal date, with its latest published figures, whatever month the dashboard shows. A client with a renewal term shows its next renewal on or after `today`. Pass `page` for a numbered page and its `total`, or `cursor` to continue a walk, not both; here `page` and the cursor are one offset.
      */
     get: operations["listRenewals"];
     put?: never;
@@ -783,6 +903,110 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/v1/invite": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read the open invite
+     * @description Returns the open invite to the signed-in session's email address, so an invitee who signed in can create their workspace without the invite link. It never returns the invite's token. The first call to this operation or to `POST /v1/workspace` with a session for the invited address, within the 24 hours after the invite was sent, records that the address signed in. From then on the invite no longer expires, though its link still does. That call records the sign-in whatever it then answers, except a `400`, `413` or `414`: those refuse a query parameter or a body, which this operation does not take, and record nothing. With no open invite to the address, or a session with no email address, the answer is `404` `not_found`. An open invite whose address did not sign in within its 24 hours is `409` `invite_expired`. A session or address that already belongs to a workspace is `409` `email_has_workspace`. Session-only.
+     */
+    get: operations["getInvite"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/invite/redeem": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Redeem an invite
+     * @description Sent when the link in an invite email is opened, with the token from the link as `Authorization: Invite <token>`. Makes sure the invited address can sign in, and returns it with the link's expiry, so the address can be offered for an email-code sign-in. The invite stays usable until a workspace is created with it, so the link may be opened again. The link stops working 24 hours after the invite was sent, even if the address has signed in; an invitee who signed in then reads the invite with `GET /v1/invite` instead. Every response carries `Cache-Control: no-store`. A missing, malformed or unknown token is one indistinguishable `404`. A `409` says which state the invite is in. Takes no request body: any non-empty body, `{}` included and whatever its media type, is refused with `400` `validation_failed`, one error coded `unknown_field` at pointer `""`.
+     */
+    post: operations["redeemInvite"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/workspace": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read the workspace
+     * @description The workspace the credential belongs to.
+     */
+    get: operations["getWorkspace"];
+    put?: never;
+    /**
+     * Create a workspace from an invite
+     * @description Creates the signed-in invitee's workspace, with them as its owner, and uses the invite up. The session must be for the address the invite was sent to. Without `invite_token`, the invite is the open invite to the session's address, under the same checks; with no open invite and no workspace for the session, the answer is `403` `account_not_provisioned`. A session whose user has no workspace yet is accepted here and by `GET /v1/invite`, and nowhere else. The first call to either, within the 24 hours after the invite was sent, records that the address signed in, whatever it then answers. The exceptions are a refusal of a query parameter, `400` or `414`, and of a body over the size limit, `413`, which record nothing. From then on the invite no longer expires. One owner has one workspace, so a session that already has one gets `409` `email_has_workspace`. No API key is created. This operation does not take `Idempotency-Key`. A retry after a successful create never creates a second workspace: it gets `409` `invite_used` when it sent `invite_token`, and `409` `email_has_workspace` when it did not. Read `GET /v1/workspace` to see the workspace. Session-only.
+     */
+    post: operations["createWorkspace"];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/onboarding": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /**
+     * Read the guided setup's progress
+     * @description The five setup steps in their fixed order, each with whether the workspace's data completes it and when it was skipped, and `current_step`, the first step neither completed nor skipped. Completion is read from the workspace's data, so finishing a step by any route, such as ingesting events with an API key, completes it.
+     */
+    get: operations["getOnboarding"];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/v1/onboarding/skipped-steps": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    /**
+     * Replace the skipped steps
+     * @description Replaces the set of skipped steps and returns the whole progress. A step already skipped keeps its `skipped_at`, a newly listed step gets the current time, and a step left out is no longer skipped. `[]` clears every skip. Skipping a completed step is allowed and does not change `completed`. Safe to retry: the same request leaves the same set.
+     */
+    put: operations["setOnboardingSkippedSteps"];
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -834,6 +1058,11 @@ export interface components {
      */
     Currency: string;
     /**
+     * @description Text to search for: 1 to 200 characters, with no whitespace at either end.
+     * @example acme
+     */
+    SearchText: string;
+    /**
      * @description The number of decimal places the money figures beside it were rounded to: the ISO 4217 exponent of `currency`.
      * @example 0
      */
@@ -877,6 +1106,26 @@ export interface components {
      * @enum {string}
      */
     CalculationState: "draft" | "validated" | "published";
+    /**
+     * @description A report's position in its lifecycle: `draft` until it is shared, `shared` while its link works, and `revoked` once the link is revoked. A state only moves forward.
+     * @enum {string}
+     */
+    ReportState: "draft" | "shared" | "revoked";
+    /**
+     * @description How often a client's renewal recurs: every month, or every year. Each renewal is the date as set plus whole terms, on the same day of the month, or on the month's last day when the month is shorter: a monthly renewal set on 31 January falls on 28 February, then 31 March.
+     * @enum {string}
+     */
+    RenewalTerm: "monthly" | "annual";
+    /**
+     * @description A renewal term to list, or `none` for a client with no term.
+     * @enum {string}
+     */
+    RenewalTermFilter: "monthly" | "annual" | "none";
+    /**
+     * @description Which renewal dates to list, measured from `today`: `overdue`, before `today`; `next_30_days` and `next_90_days`, from `today` to 30 or 90 days after it, both ends included; `upcoming`, on or after `today`.
+     * @enum {string}
+     */
+    RenewalWindow: "overdue" | "next_30_days" | "next_90_days" | "upcoming";
     /**
      * @description An API key scope. Scopes are independent: `write` grants neither `read` nor `ingest`.
      * @enum {string}
@@ -963,12 +1212,18 @@ export interface components {
       | "report_shared"
       | "report_not_shared"
       | "api_key_revoked"
+      | "invite_expired"
+      | "invite_used"
+      | "invite_revoked"
+      | "invite_email_mismatch"
+      | "email_has_workspace"
       | "payload_too_large"
       | "uri_too_long"
       | "unsupported_media_type"
       | "idempotency_key_reused"
       | "rate_limited"
-      | "internal_error";
+      | "internal_error"
+      | "upstream_failed";
     /** @description The field-level code of one `errors` entry, or of an ingest or CSV row error. The vocabulary is open: new codes are additive. */
     FieldErrorCode:
       | "required"
@@ -1064,8 +1319,14 @@ export interface components {
       /** @description Free text, at most 200 characters. */
       name: string;
       status: components["schemas"]["ClientStatus"] | (string & {});
+      /** @description The external identifier partners use for this client in event data. `null` when unset. */
       client_key: string | null;
+      /** @description For an active client with a `renewal_term`, the next renewal on or after the current UTC date: the date as set, rolled forward by whole terms once it passes, keeping its day of the month, or the month's last day when the month is shorter. Otherwise the date as set, which may be past. `null` when unset. */
       renewal_date: components["schemas"]["Date"] | null;
+      /** @description How often the renewal recurs. `null` when the client has no term, and its renewal date stays as set. A client can hold a term without a renewal date; the term applies once a date is set. */
+      renewal_term:
+        | (components["schemas"]["RenewalTerm"] | (string & {}))
+        | null;
       /** @description Free text, `""` when empty. */
       notes: string;
       created_at: components["schemas"]["Instant"];
@@ -1081,23 +1342,34 @@ export interface components {
     ClientDetail: components["schemas"]["Client"] & {
       /** @description The assigned agents, ordered by name, case-insensitively. */
       agents: components["schemas"]["AssignedAgent"][];
+      /** @description The first instant anything about this client could be true: its earliest attributed event, or the start of the earliest charge reaching it. `null` when it has neither. */
       earliest_activity_at: components["schemas"]["Instant"] | null;
     };
     ClientCreate: {
       /** @description Free text, trimmed of white space (the Unicode `White_Space` property) at both ends. The trimmed name is stored. It holds 1 to 200 characters, counted in Unicode code points after trimming: blank after trimming is `required`, and longer than 200 characters after trimming is `too_long`. U+0000 is `invalid_format`, as in every request string. No JSON Schema keyword measures a length after trimming, so the schema states no `maxLength`; a `maxLength` of 200 would refuse a padded name the server accepts. */
       name: string;
       status: components["schemas"]["ClientStatus"];
+      /** @description At most 200 characters, counted as sent. Not trimmed: a key with white space (the Unicode `White_Space` property) at either end, or white space only, is refused with `invalid_format`. Unique in the workspace ignoring case: a key another client holds in any case, such as `acme` beside `Acme`, is refused with `client_key_in_use`. Absent or `null` leaves it unset; `""` is refused with `invalid_format`. */
       client_key?: string | null;
+      /** @description The renewal date. A date before the request's UTC date less one day is refused with `out_of_range`, so no time zone's today is refused. Absent or `null` leaves it unset; `""` is refused with `invalid_format`. */
       renewal_date?: components["schemas"]["DateInput"] | null;
+      /** @description How often the renewal recurs: an active client's renewal date then rolls forward by whole terms once it passes. Absent or `null` is no term, and the date stays as set. Any other value, `""` included, is refused with `invalid_value`. */
+      renewal_term?: components["schemas"]["RenewalTerm"] | null;
+      /** @description Free text, at most 2,000 characters. Absent or `null` stores `""`. */
       notes?: string | null;
     };
-    /** @description A JSON Merge Patch (RFC 7396): an absent member is unchanged, `null` clears a member. The merged client is validated whole. */
+    /** @description A JSON Merge Patch (RFC 7396): an absent member is unchanged, `null` clears a member. The merged client is validated whole. A client's renewal schedule starts at the date as set: each renewal is that date plus whole terms. A patch that keeps the date but changes `renewal_term`, or changes `status`, saves the date the client shows on the current UTC day as the new start of its schedule, so the date shown does not jump; this happens without the patch sending a date. A client that is not active stops rolling and keeps the date it showed. A date the schedule already shows cannot become the new start in one patch: to move a client renewing on the 31st to the 30th, send a later 30th. */
     ClientPatch: {
       /** @description Free text, trimmed of white space (the Unicode `White_Space` property) at both ends. The trimmed name is stored. It holds 1 to 200 characters, counted in Unicode code points after trimming: blank after trimming is `required`, and longer than 200 characters after trimming is `too_long`. U+0000 is `invalid_format`, as in every request string. No JSON Schema keyword measures a length after trimming, so the schema states no `maxLength`; a `maxLength` of 200 would refuse a padded name the server accepts. */
       name?: string;
       status?: components["schemas"]["ClientStatus"];
+      /** @description `null` clears it, refused with `client_key_has_events` while events carry the key. `""` does not clear it: it is refused with `invalid_format`. At most 200 characters, counted as sent. Not trimmed: a key with white space (the Unicode `White_Space` property) at either end, or white space only, is refused with `invalid_format`. Unique in the workspace ignoring case: a key another client holds in any case is refused with `client_key_in_use`. */
       client_key?: string | null;
+      /** @description A date on the client's renewal schedule, up to the one it shows on the next UTC day, leaves the schedule unchanged, so sending back the `renewal_date` a read returned keeps it. Any other date is a new renewal date, refused with `out_of_range` when before the request's UTC date less one day. `null` clears it and keeps the term; `""` is refused with `invalid_format`. */
       renewal_date?: components["schemas"]["DateInput"] | null;
+      /** @description How often the renewal recurs. `null` clears it, and the date then stays as set. Any other value, `""` included, is refused with `invalid_value`. */
+      renewal_term?: components["schemas"]["RenewalTerm"] | null;
+      /** @description Free text, at most 2,000 characters. `null` clears it to `""`. */
       notes?: string | null;
     };
     ClientAgentsSet: {
@@ -1154,7 +1426,9 @@ export interface components {
       agent_key: string;
       /** @description Free text, trimmed of white space (the Unicode `White_Space` property) at both ends. The trimmed name is stored. It holds 1 to 200 characters, counted in Unicode code points after trimming: blank after trimming is `required`, and longer than 200 characters after trimming is `too_long`. U+0000 is `invalid_format`, as in every request string. No JSON Schema keyword measures a length after trimming, so the schema states no `maxLength`; a `maxLength` of 200 would refuse a padded name the server accepts. */
       name: string;
+      /** @description Free text, at most 100 characters. */
       framework?: string | null;
+      /** @description Free text, at most 100 characters. */
       version?: string | null;
       status: components["schemas"]["AgentStatus"];
     };
@@ -1162,7 +1436,9 @@ export interface components {
     AgentPatch: {
       /** @description Free text, trimmed of white space (the Unicode `White_Space` property) at both ends. The trimmed name is stored. It holds 1 to 200 characters, counted in Unicode code points after trimming: blank after trimming is `required`, and longer than 200 characters after trimming is `too_long`. U+0000 is `invalid_format`, as in every request string. No JSON Schema keyword measures a length after trimming, so the schema states no `maxLength`; a `maxLength` of 200 would refuse a padded name the server accepts. */
       name?: string;
+      /** @description Free text, at most 100 characters. `null` clears it to `""`. */
       framework?: string | null;
+      /** @description Free text, at most 100 characters. `null` clears it to `""`. */
       version?: string | null;
       status?: components["schemas"]["AgentStatus"];
     };
@@ -1192,6 +1468,8 @@ export interface components {
       currency: components["schemas"]["Currency"];
       created_at: components["schemas"]["Instant"];
       updated_at: components["schemas"]["Instant"];
+      /** @description When the model was archived; `null` unless `status` is `archived`. */
+      archived_at: components["schemas"]["Instant"] | null;
       /** @description At most 50, ordered by `position`. */
       line_items: components["schemas"]["ValueLineItem"][];
     };
@@ -1212,10 +1490,12 @@ export interface components {
     ValueModelCreate: {
       /** @description Free text, trimmed of white space (the Unicode `White_Space` property) at both ends. The trimmed name is stored. It holds 1 to 200 characters, counted in Unicode code points after trimming: blank after trimming is `required`, and longer than 200 characters after trimming is `too_long`. U+0000 is `invalid_format`, as in every request string. No JSON Schema keyword measures a length after trimming, so the schema states no `maxLength`; a `maxLength` of 200 would refuse a padded name the server accepts. */
       name: string;
+      /** @description Create-only: start from this built-in template's line items. An unknown id is refused with `unknown_reference`. Absent or `null` means no template; `""` is refused with `invalid_format`. */
       template_id?: string | null;
+      /** @description Create-only: start from a copy of this model's line items. An id naming no model in the workspace is refused with `unknown_reference`. Absent or `null` means no source; `""` is refused with `invalid_format`. */
       copy_from_model_id?: components["schemas"]["UuidInput"] | null;
     };
-    /** @description A JSON Merge Patch (RFC 7396) of the client's active model. Setting `status` to `archived` frees the client for a new active model. */
+    /** @description A JSON Merge Patch (RFC 7396) of the client's active model. Setting `status` to `archived` sets `archived_at` and frees the client for a new active model. */
     ValueModelPatch: {
       /** @description Free text, trimmed of white space (the Unicode `White_Space` property) at both ends. The trimmed name is stored. It holds 1 to 200 characters, counted in Unicode code points after trimming: blank after trimming is `required`, and longer than 200 characters after trimming is `too_long`. U+0000 is `invalid_format`, as in every request string. No JSON Schema keyword measures a length after trimming, so the schema states no `maxLength`; a `maxLength` of 200 would refuse a padded name the server accepts. */
       name?: string;
@@ -1228,6 +1508,7 @@ export interface components {
       label: string;
       /** @description At least 0 and below 100,000,000, with at most 4 decimal places; more is refused with `too_precise`, never rounded. Absent means 0, because templates ship every unit value as 0 on purpose. */
       unit_value?: components["schemas"]["Money"];
+      /** @description Free text, at most 1,000 characters. */
       provenance_note?: string | null;
     };
     ValueLineItemsSet: {
@@ -1262,6 +1543,7 @@ export interface components {
       events: number;
       /** @description The summed event quantity. */
       quantity: number;
+      /** @description Whether the client's active value model prices this outcome type. `null` where no single client's model applies: the workspace-wide list and value coverage findings. */
       priced: boolean | null;
     };
     /** @description What a cost line item is charged to: a client or an agent. */
@@ -1286,6 +1568,7 @@ export interface components {
       monthly_amount: components["schemas"]["Money"];
       currency: components["schemas"]["Currency"];
       start_date: components["schemas"]["Date"];
+      /** @description Inclusive. `null` while the charge is still running. */
       end_date: components["schemas"]["Date"] | null;
       created_at: components["schemas"]["Instant"];
       updated_at: components["schemas"]["Instant"];
@@ -1297,6 +1580,7 @@ export interface components {
       /** @description In the workspace currency. At least 0 and below 100,000,000, with at most 4 decimal places; more is refused with `too_precise`. Required: absent or `null` is refused with `required`, and `0` must be sent explicitly. */
       monthly_amount: components["schemas"]["Money"];
       start_date: components["schemas"]["DateInput"];
+      /** @description Inclusive; not before `start_date`. Absent or `null` makes the charge open-ended; `""` is refused with `invalid_format`. */
       end_date?: components["schemas"]["DateInput"] | null;
     };
     /** @description A JSON Merge Patch (RFC 7396). The merged line item is validated whole. */
@@ -1307,6 +1591,7 @@ export interface components {
       /** @description In the workspace currency. At least 0 and below 100,000,000, with at most 4 decimal places; more is refused with `too_precise`. */
       monthly_amount?: components["schemas"]["Money"];
       start_date?: components["schemas"]["DateInput"];
+      /** @description Inclusive; not before `start_date`. `null` makes the charge open-ended; `""` is refused with `invalid_format`. */
       end_date?: components["schemas"]["DateInput"] | null;
     };
     /** @description One model's token prices. */
@@ -1340,7 +1625,9 @@ export interface components {
     };
     /** @description The two return ratios. Both are `null` together, exactly when `undefined_reason` is set. */
     Ratios: {
+      /** @description `(value − cost) / cost`, from the rounded totals. */
       roi: components["schemas"]["Ratio"] | null;
+      /** @description `value / cost`, from the rounded totals. */
       value_to_cost: components["schemas"]["Ratio"] | null;
       undefined_reason:
         | (components["schemas"]["UndefinedReason"] | (string & {}))
@@ -1389,6 +1676,7 @@ export interface components {
       value_model: components["schemas"]["ValueModelRef"] | null;
       /** @description One line for each line item of the model, in line-item order, so at most 50. An outcome type no line item prices is never a line; it is listed in `coverage.unpriced_outcome_types`. */
       lines: components["schemas"]["ValueLine"][];
+      /** @description `null` together with `value_model` when the client has no active model: not priced, which differs from zero. */
       total: components["schemas"]["Money"] | null;
       coverage: components["schemas"]["ValueCoverage"];
     };
@@ -1528,7 +1816,7 @@ export interface components {
       /** @description How many unmapped outcome types `unmapped_outcome_types` leaves out, `0` when it lists every one. */
       unmapped_outcome_types_omitted: number;
     };
-    /** @description One event behind a client's totals. */
+    /** @description An event as stored, with its agent's name and the client it counts toward. */
     AttributedEvent: {
       /** @description The event id: a 64-bit integer as a decimal string, because JavaScript numbers lose precision above 2^53. */
       id: string;
@@ -1539,25 +1827,108 @@ export interface components {
       event_type: string;
       outcome_type: string | null;
       quantity: number;
+      /** @description In the response's `currency`. */
       cost: components["schemas"]["Money"] | null;
       tokens_in: number | null;
       tokens_out: number | null;
       model: string | null;
+      /** @description The key the event carried, as stored: as sent to `POST /v1/events`, trimmed by a CSV import. `null` when it carried none, or only whitespace. */
       client_key: string | null;
       source: components["schemas"]["EventSource"] | (string & {});
+      /** @description When the API stored the event. An imported or late event arrives after its `timestamp`, sometimes long after. */
+      created_at: components["schemas"]["Instant"];
+      /** @description The CSV import that wrote the event, or `null` when it was sent to `POST /v1/events`. */
+      import_batch_id: components["schemas"]["Uuid"] | null;
+      /** @description The client the event counts toward: the client whose key it carried, or, when it carried none, the one client its agent is assigned to. `null` when it counts toward no client: its key names none, or it carried no key and its agent is assigned to no client or to several. */
+      client_id: components["schemas"]["Uuid"] | null;
+      /** @description The name of the client in `client_id`, or `null` with it. */
+      client_name: string | null;
     };
-    /** @description The events behind a client's totals. The shared list envelope plus this list's own members. It is the one list that also takes `page` and returns `total`; `page` and the cursor are one offset with two spellings. */
+    /** @description The events behind a client's totals. The shared list envelope plus this list's own members. It is the one list that returns `total` on every request, and the one whose `page` and cursor are one offset with two spellings. */
     ClientEventList: {
       client_id: components["schemas"]["Uuid"];
       period: components["schemas"]["Period"];
       /** @description The currency of every `cost` in `data`, given once here. An event's stored `currency` is not exposed: it is always `null` or the workspace currency, because a mismatching event is refused. */
       currency: components["schemas"]["Currency"];
+      /** @description The page requested, or `null` when the request used `cursor`. */
       page: number | null;
       /** @description Every event matching the filters, not only this page. */
       total: number;
       /** @description At most `limit`, in the requested order; ties break on the event id, descending. */
       data: components["schemas"]["AttributedEvent"][];
       has_more: boolean;
+      /** @description Opaque. Encodes the offset after this page. */
+      next_cursor: string | null;
+    };
+    /** @description The workspace's events: newest first by `timestamp`, then by id, unless `sort` asks for another order. */
+    EventList: {
+      /** @description The arrival limit this page was read under: the `as_of` sent, the cursor's, or the one issued. Send it on later requests to read the same events. */
+      as_of: components["schemas"]["Instant"];
+      /** @description The period sent. Both bounds are `null` when neither was sent. */
+      period: components["schemas"]["Period"];
+      /** @description The `client_id` filter, or `null` when none was sent. */
+      client_id: components["schemas"]["Uuid"] | null;
+      /** @description The currency of every `cost` in `data`, given once here. */
+      currency: components["schemas"]["Currency"];
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every event matching the filters, up to 10,000, or `null` when the request did not send `page`. With `import_batch_id` it is exact, and may pass 10,000. */
+      total: number | null;
+      /** @description `true` when more than 10,000 events matched and `total` is 10,000; `false` when `total` is exact; `null` when the request did not send `page`. */
+      total_capped: boolean | null;
+      /** @description At most `limit`, in the requested order; ties break on the event id, descending. */
+      data: components["schemas"]["AttributedEvent"][];
+      /** @description Whether another page exists. */
+      has_more: boolean;
+      /** @description The opaque cursor for the next page. It carries `as_of`. Clients must not parse it. */
+      next_cursor: string | null;
+    };
+    /** @description How many events a view of the workspace's events holds: in all, per day and per category. */
+    EventSummary: {
+      /** @description The arrival limit the counts were read under, as on the list. */
+      as_of: components["schemas"]["Instant"];
+      period: components["schemas"]["Period"];
+      /** @description The `client_id` filter, or `null` when none was sent. */
+      client_id: components["schemas"]["Uuid"] | null;
+      /** @description Every event the view holds, counted exactly. Under the same parameters it equals the list's `total` whenever the list's `total_capped` is `false`. */
+      total: number;
+      /** @description One entry per 24 hours from `from`, ascending, zeros included. The last is shorter when the period is not a whole number of days. Empty when `from` equals `to`. */
+      days: components["schemas"]["EventDayCount"][];
+      /** @description One entry per category, in the order `session`, `task`, `model`, `outcome`, `exception`, zeros included. With `category` sent, the others are `0`. */
+      categories: components["schemas"]["EventCategoryCount"][];
+    };
+    /** @description The events whose `timestamp` falls in one day of the period. */
+    EventDayCount: {
+      /** @description Where the day starts. It ends 24 hours later, or at the period's end. */
+      start: components["schemas"]["Instant"];
+      count: number;
+    };
+    /** @description The events of one category. */
+    EventCategoryCount: {
+      category: components["schemas"]["EventCategory"] | (string & {});
+      count: number;
+    };
+    /** @description The workspace's events in the order the API stored them, newest first, then by id descending. */
+    EventArrivalList: {
+      /** @description The end of the arrival window, exclusive. Send it as the next poll's `since`. */
+      as_of: components["schemas"]["Instant"];
+      /** @description The start of the arrival window, inclusive, or `null` when none was sent. */
+      since: components["schemas"]["Instant"] | null;
+      /** @description The bounds sent. A bound not sent is `null`. */
+      period: components["schemas"]["Period"];
+      /** @description The `client_id` filter, or `null` when none was sent. */
+      client_id: components["schemas"]["Uuid"] | null;
+      /** @description The currency of every `cost` in `data`, given once here. */
+      currency: components["schemas"]["Currency"];
+      /** @description The matching events in the window, from `since` to `as_of`, up to 10,000; `null` without `since`. */
+      count: number | null;
+      /** @description `true` when more than 10,000 events matched and `count` is 10,000; `null` without `since`. */
+      count_capped: boolean | null;
+      /** @description At most `limit`, newest arrival first; ties break on the event id, descending. */
+      data: components["schemas"]["AttributedEvent"][];
+      /** @description Whether another page exists. */
+      has_more: boolean;
+      /** @description The opaque cursor for the next page. It carries `as_of`. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description The validation checklist: the attestation recorded when the calculation was validated. All four checks are `false` until the calculation is validated. */
@@ -1579,6 +1950,7 @@ export interface components {
       costs_reviewed: true;
       /** @constant */
       unit_values_current: true;
+      /** @description Free text, at most 2,000 characters. Absent or `null` is stored as `""`. */
       note?: string | null;
     };
     /** @description The ROI result frozen when the calculation was created, never rewritten. It is served with the field names it was stored with. A change to its shape increments `snapshot_version`, and this spec describes every version still stored. Version 1 is the `RoiResult` shape. Every list is stored whole. When served, each list the live ROI read limits is put in the same order and limited the same way, and its count of omitted entries is added beside it, so a snapshot and a live read of the same data match. The frozen totals cover every entry. */
@@ -1594,6 +1966,7 @@ export interface components {
       period: components["schemas"]["Period"];
       currency: components["schemas"]["Currency"];
       minor_units: components["schemas"]["MinorUnits"];
+      /** @description `null` when the client had no active value model. */
       value_total: components["schemas"]["Money"] | null;
       cost_total: components["schemas"]["Money"];
       ratios: components["schemas"]["Ratios"];
@@ -1603,14 +1976,17 @@ export interface components {
       published_at: components["schemas"]["Instant"] | null;
       snapshot: components["schemas"]["CalculationSnapshot"];
     };
-    /** @description A calculation as the list returns it: without `snapshot`, with `is_current`. */
+    /** @description A calculation as the lists return it: without `snapshot`, with `is_current`, the client's name and the number of coverage findings. */
     CalculationSummary: {
       id: components["schemas"]["Uuid"];
       client_id: components["schemas"]["Uuid"];
+      /** @description The client's name as its record holds it now. */
+      client_name: string;
       state: components["schemas"]["CalculationState"] | (string & {});
       period: components["schemas"]["Period"];
       currency: components["schemas"]["Currency"];
       minor_units: components["schemas"]["MinorUnits"];
+      /** @description `null` when the client had no active value model. */
       value_total: components["schemas"]["Money"] | null;
       cost_total: components["schemas"]["Money"];
       ratios: components["schemas"]["Ratios"];
@@ -1618,7 +1994,10 @@ export interface components {
       created_at: components["schemas"]["Instant"];
       validated_at: components["schemas"]["Instant"] | null;
       published_at: components["schemas"]["Instant"] | null;
+      /** @description Whether this is the figure for its period: the latest publication covering it. `null` when the calculation is not published. */
       is_current: boolean | null;
+      /** @description How many coverage findings the calculation's frozen figures hold: the disclosures a report on it would list, including those a report leaves out of the shared copy by default. */
+      coverage_findings: number;
     };
     CalculationCreate: {
       /** @description The ended period to freeze. Digits below a microsecond are dropped from each bound before any check, because storage keeps no finer. A bound before `1900-01-01T00:00:00Z` is refused with `out_of_range` at its own pointer. `from` must be before `to`: a period with `from` at or after `to` holds no instant, and is refused with `out_of_range` at `/period/from`. `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` at `/period`. `to` must be at or before the start of the current UTC day, and after the client's first recorded activity; either failure is refused with `out_of_range` at `/period/to`. A client with no recorded events or charges at all is refused with `out_of_range` at `/period`, because no period can succeed. */
@@ -1631,26 +2010,36 @@ export interface components {
       facts: Record<string, unknown>;
       /** @description Whether the finding goes out on the shared report. */
       included: boolean;
+      /** @description The owner's own wording. `null` means use the default sentence, which `""` would not. */
       text: string | null;
     };
     DisclosureEdit: {
       /** @description Names one of the report's stored findings, spelled as a read returns it. A kind that is not one of them is refused with `invalid_value` at `/disclosures/<index>/kind`. */
       kind: components["schemas"]["DisclosureKind"];
       included: boolean;
+      /** @description At most 500 characters. `null` restores the default sentence. */
       text?: string | null;
     };
     /** @description A report: the editorial layer over a published calculation. */
     Report: {
       id: components["schemas"]["Uuid"];
       calculation_id: components["schemas"]["Uuid"];
-      /** @description Free text, as the recipient sees it. */
+      /** @description The client of the report's calculation. */
+      client_id: components["schemas"]["Uuid"];
+      /** @description The client's name as its record holds it now, so renaming the client renames it on every report. The recipient sees `letterhead_client_name` instead. */
       client_name: string;
-      /** @description Free text, as the recipient sees it. */
-      workspace_name: string;
+      /** @description The period of the report's calculation. */
+      period: components["schemas"]["Period"];
+      state: components["schemas"]["ReportState"] | (string & {});
+      /** @description Free text, as the recipient sees it: the letterhead's "For" line. It starts as the client's name and may differ from it. */
+      letterhead_client_name: string;
+      /** @description Free text, as the recipient sees it: the letterhead's "From" line. It starts as the workspace's name and may differ from it. */
+      letterhead_workspace_name: string;
       /** @description Free text, `""` when empty. */
       note: string;
       /** @description In the order the calculation's coverage produced them. At most 12: each kind appears at most once. */
       disclosures: components["schemas"]["Disclosure"][];
+      /** @description The link token, once shared. `null` before the report is shared. */
       share_token: string | null;
       shared_at: components["schemas"]["Instant"] | null;
       revoked_at: components["schemas"]["Instant"] | null;
@@ -1662,12 +2051,20 @@ export interface components {
     ReportSummary: {
       id: components["schemas"]["Uuid"];
       calculation_id: components["schemas"]["Uuid"];
-      /** @description Free text, as the recipient sees it. */
+      /** @description The client of the report's calculation. */
+      client_id: components["schemas"]["Uuid"];
+      /** @description The client's name as its record holds it now, so renaming the client renames it on every report. The recipient sees `letterhead_client_name` instead. */
       client_name: string;
-      /** @description Free text, as the recipient sees it. */
-      workspace_name: string;
+      /** @description The period of the report's calculation. */
+      period: components["schemas"]["Period"];
+      state: components["schemas"]["ReportState"] | (string & {});
+      /** @description Free text, as the recipient sees it: the letterhead's "For" line. It starts as the client's name and may differ from it. */
+      letterhead_client_name: string;
+      /** @description Free text, as the recipient sees it: the letterhead's "From" line. It starts as the workspace's name and may differ from it. */
+      letterhead_workspace_name: string;
       /** @description Free text, `""` when empty. */
       note: string;
+      /** @description The link token, once shared. `null` before the report is shared. */
       share_token: string | null;
       shared_at: components["schemas"]["Instant"] | null;
       revoked_at: components["schemas"]["Instant"] | null;
@@ -1677,14 +2074,16 @@ export interface components {
     };
     /** @description A report with its recipient preview, as the single read returns it. */
     ReportWithPreview: components["schemas"]["Report"] & {
+      /** @description Exactly what `GET /report` would return. `null` when the preview cannot be rendered. */
       preview: components["schemas"]["PublicReport"] | null;
     };
     /** @description A JSON Merge Patch (RFC 7396). An array replaces the stored array whole. A shared report is refused with `report_shared`. */
     ReportPatch: {
       /** @description Free text, 1 to 200 characters counted in Unicode code points, padding included. Not trimmed: the value is stored as sent. Blank after trimming white space is `required`, and longer than 200 characters is `too_long`. */
-      client_name?: string;
+      letterhead_client_name?: string;
       /** @description Free text, 1 to 200 characters counted in Unicode code points, padding included. Not trimmed: the value is stored as sent. Blank after trimming white space is `required`, and longer than 200 characters is `too_long`. */
-      workspace_name?: string;
+      letterhead_workspace_name?: string;
+      /** @description Free text, at most 2,000 characters. `null` clears it to `""`. */
       note?: string | null;
       /** @description Replaces the editorial state of every finding. It must name each stored finding exactly once: a missing one is `required`, an unknown one `invalid_value`, a repeated one `duplicate`. At most 50: a longer array is refused at its 51st element with one `too_many` at `/disclosures`. */
       disclosures?: components["schemas"]["DisclosureEdit"][];
@@ -1723,6 +2122,7 @@ export interface components {
           total: components["schemas"]["Money"];
         };
       };
+      /** @description The client's abutting prior published period. */
       compared_to: {
         period: components["schemas"]["Period"];
         value_total: components["schemas"]["Money"] | null;
@@ -1812,9 +2212,17 @@ export interface components {
     Renewal: {
       client_id: components["schemas"]["Uuid"];
       name: string;
+      /** @description For a client with a `renewal_term`, the next renewal on or after the list's `today`. Otherwise the date as set, which may be before `today`. */
       renewal_date: components["schemas"]["Date"];
+      /** @description How often the renewal recurs. `null` when the client has no term. */
+      renewal_term:
+        | (components["schemas"]["RenewalTerm"] | (string & {}))
+        | null;
       roi: components["schemas"]["Ratio"] | null;
+      /** @description The client's latest published period. `null` when it has none. */
       period: components["schemas"]["Period"] | null;
+      /** @description The published calculation `roi` and `period` come from. `null` exactly when `period` is. */
+      calculation_id: components["schemas"]["Uuid"] | null;
       health: {
         direction: components["schemas"]["HealthDirection"] | (string & {});
         /** @description The change in percentage points, one decimal place. */
@@ -1837,6 +2245,7 @@ export interface components {
       /** @description In the order `ingest`, `read`, `write`. */
       scopes: (components["schemas"]["Scope"] | (string & {}))[];
       created_at: components["schemas"]["Instant"];
+      /** @description Accurate to 60 seconds. */
       last_used_at: components["schemas"]["Instant"] | null;
       revoked_at: components["schemas"]["Instant"] | null;
     };
@@ -1853,22 +2262,32 @@ export interface components {
     };
     /** @description A canonical event. A problem with one event rejects that event only, as row errors; an unknown member is such a problem. `category` outside `EventCategory` is refused with `invalid_value`. `currency` is not part of the deduplication hash. */
     EventInput: {
+      /** @description An optional sender-chosen id. A repeat within the workspace is a duplicate. The SDKs generate one per event. At most 200 characters, counted as sent; more is refused with `too_long`. */
       event_id?: string | null;
       /** @description When the event happened. At most 24 hours in the future. */
       timestamp: components["schemas"]["InstantInput"];
       /** @description The agent that acted. An agent not seen before is created. 1 to 200 characters, counted as sent; more is refused with `too_long`. */
       agent_key: string;
+      /** @description The client the event belongs to. Required on a `model` or `outcome` event whose agent is assigned to two or more clients; without it the row is refused with `client_key_required`. A key of white space only counts as no key. At most 200 characters, counted as sent; more is refused with `too_long`. */
       client_key?: string | null;
       category: components["schemas"]["EventCategory"];
       /** @description What the agent did. 1 to 200 characters, counted as sent; more is refused with `too_long`. */
       event_type: string;
+      /** @description Required when `category` is `outcome`. At most 200 characters, counted as sent; more is refused with `too_long`, whatever the `category`. */
       outcome_type?: string | null;
+      /** @description Absent, `null` or `0` means 1. Its magnitude is below 10,000,000,000. */
       quantity?: number | null;
+      /** @description In `currency`, or the workspace currency. Its magnitude is below 100,000,000, with at most 6 decimal places; more is refused with `too_precise`. May be negative: a vendor credit. */
       cost?: components["schemas"]["Money"] | null;
+      /** @description A negative count is refused with `out_of_range`. */
       tokens_in?: number | null;
+      /** @description A negative count is refused with `out_of_range`. */
       tokens_out?: number | null;
+      /** @description The model the agent invoked. The price table is keyed by it. At most 200 characters, counted as sent; more is refused with `too_long`. */
       model?: string | null;
+      /** @description The currency of `cost`. Absent means the workspace currency. A different currency is refused with `currency_mismatch`, never converted. */
       currency?: components["schemas"]["Currency"] | null;
+      /** @description Free-form. Any members, at most 8 KB serialised; more is refused with `too_large`. A repeated member name is refused with `duplicate`. */
       metadata?: Record<string, unknown> | null;
     };
     EventBatch: {
@@ -1926,13 +2345,14 @@ export interface components {
     /** @description Two parts, in this order: `mapping`, then `file`. The server reads them in that order and never buffers the file whole. A request-level problem in this body is located by `part` (see `FieldError`): a mapping member by `part` `mapping` and a `pointer` into the mapping, such as `/columns/client_key`; a mapped column absent from the file header by `part` `file` and that `column`; a missing or misordered part by `part` alone. A part after `file` is refused with `unknown_field` on that part, and a `mapping` part over 65,536 bytes with `too_large`. A header that names a column more than once is refused with `duplicate` on `part` `file` and that `column`, one entry per repeated name in the order each first repeats, before any `required` entry for a mapped column the header lacks. Names compare exactly, untrimmed, so `Bot` and `Bot ` are two columns. Blank header cells may repeat unless the mapping binds the blank name. */
     ImportUpload: {
       mapping: components["schemas"]["ImportMapping"];
-      /** @description The CSV file, with a header row. At most 250,000 data rows. Each header name is at most 256 bytes of UTF-8; a longer one is refused with `too_long` on `part` `file`, located by its position in the `detail` and carrying no `column`, before any repeated-name or missing-column check. A header name that is not valid UTF-8 is accepted, but the mapping cannot bind it, and the response writes each such byte as U+FFFD wherever it names the column. The part's file name is stored with the import, so one that is not valid UTF-8 is refused with `invalid_format` on `part` `file`, as one holding U+0000 is. */
+      /** @description The CSV file, with a header row. At most 250,000 data rows. Each header name is at most 256 bytes of UTF-8; a longer one is refused with `too_long` on `part` `file`, located by its position in the `detail` and carrying no `column`, before any repeated-name or missing-column check. A header name that is not valid UTF-8 is accepted, but the mapping cannot bind it, and the response writes each such byte as U+FFFD wherever it names the column. The part's file name is stored with the import, so one that is not valid UTF-8 is refused with `invalid_format` on `part` `file`, as one holding U+0000 is. A file name of more than 255 characters, counted as Unicode code points after a directory part separated by `/` is dropped, is refused with `too_long` on `part` `file`. A backslash is not a separator: `C:\ops\august.csv` is counted and stored whole. */
       file: string;
     };
     /** @description One problem with a rejected CSV row. A row with several problems has one entry for each, all carrying its `row`. */
     ImportRowError: {
       /** @description The one-based line number in the file, counting the header. */
       row: number;
+      /** @description The file's column the problem is in. `null` when the value came from a constant or the problem has no column. */
       column: string | null;
       code: components["schemas"]["FieldErrorCode"] | (string & {});
       detail: string;
@@ -1978,6 +2398,7 @@ export interface components {
       ignored_columns: string[];
       /** @description How many columns the mapping does not bind beyond the 100 in `ignored_columns`. `0` when the list is complete. */
       ignored_columns_omitted: number;
+      /** @description Set when the file has timestamps without an offset and the last import used a different timezone, so re-imported rows would not deduplicate. Human text. */
       timezone_warning: string | null;
     };
     /** @description The outcome of a CSV import. Partial acceptance is a success. */
@@ -1992,34 +2413,113 @@ export interface components {
       /** @description Whether `errors` omits any problem, as on the preview. */
       errors_truncated: boolean;
     };
+    /** @description One CSV import and its counts. `total_rows` is `accepted` plus `duplicates` plus `rejected`. */
+    ImportSummary: {
+      id: components["schemas"]["Uuid"];
+      /** @description The file part's file name, without a directory part separated by `/`: a part named `exports/august.csv` is stored as `august.csv`. A backslash is not a separator, so `C:\ops\august.csv` is stored whole. `""` when the file part named none. */
+      filename: string;
+      /** @description The file's data rows, not counting the header. */
+      total_rows: number;
+      /** @description The events this import wrote, counted when the import is read: the `import_batch_id` of each is the import's `id`. */
+      accepted: number;
+      /** @description `total_rows` less `rejected` and `accepted`. At the commit, these are the valid rows that wrote no event: an event with the same `event_id`, or the same content hash, was already stored, or an earlier row of the same file had the same `event_id`. Identical rows of one file without an `event_id` are each written, so they are not counted here. */
+      duplicates: number;
+      /** @description Rows refused, counted once each however many problems they had. */
+      rejected: number;
+      created_at: components["schemas"]["Instant"];
+    };
+    /** @description One CSV import, its counts and the mapping it ran with. */
+    Import: {
+      id: components["schemas"]["Uuid"];
+      /** @description The file part's file name, without a directory part separated by `/`: a part named `exports/august.csv` is stored as `august.csv`. A backslash is not a separator, so `C:\ops\august.csv` is stored whole. `""` when the file part named none. */
+      filename: string;
+      /** @description The file's data rows, not counting the header. */
+      total_rows: number;
+      /** @description The events this import wrote, counted when the import is read: the `import_batch_id` of each is the import's `id`. */
+      accepted: number;
+      /** @description `total_rows` less `rejected` and `accepted`. At the commit, these are the valid rows that wrote no event: an event with the same `event_id`, or the same content hash, was already stored, or an earlier row of the same file had the same `event_id`. Identical rows of one file without an `event_id` are each written, so they are not counted here. */
+      duplicates: number;
+      /** @description Rows refused, counted once each however many problems they had. */
+      rejected: number;
+      created_at: components["schemas"]["Instant"];
+      mapping: components["schemas"]["AppliedImportMapping"];
+    };
+    /** @description The mapping an import ran with, with every member present: a member the import did not send holds the value it applied. It has the members of `ImportMapping`, so it can be sent as the next import's `mapping`. A value the server's current rules refuse is refused then as in any mapping. */
+    AppliedImportMapping: {
+      /** @description Canonical field name to the file's column name, as in `ImportMapping`. `{}` when the import bound none. */
+      columns: {
+        [key: string]: string;
+      };
+      /** @description Canonical field name to the value used for every row, as in `ImportMapping`. `{}` when the import had none. */
+      constants: {
+        [key: string]: string;
+      };
+      /** @description The IANA zone applied to timestamps without an offset. `UTC` when the import named none. */
+      timezone: string;
+      /** @description The field delimiter. `,` when the import named none. */
+      delimiter: components["schemas"]["ImportDelimiter"] | (string & {});
+    };
+    /**
+     * @description A CSV field delimiter, a comma, a semicolon or a tab.
+     * @enum {string}
+     */
+    ImportDelimiter: "," | ";" | "\t";
     /** @description Liveness. */
     Health: {
       status: "ok" | (string & {});
       /** @description The build version. */
       version: string;
     };
+    /** @description The workspace's imports: newest first, then id. */
+    ImportList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every import in the workspace, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
+      /** @description One page of items, at most `limit`, in the documented order. */
+      data: components["schemas"]["ImportSummary"][];
+      /** @description Whether another page exists. */
+      has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
+      next_cursor: string | null;
+    };
     /** @description Clients, ordered by name case-insensitively, then id. */
     ClientList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every client matching the filters and search, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
       /** @description One page of items, at most `limit`, in the documented order. */
       data: components["schemas"]["Client"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description Agents, ordered by name case-insensitively, then id. Includes agents ingest created. */
     AgentList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every agent matching the filters and search, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
       /** @description One page of items, at most `limit`, in the documented order. */
       data: components["schemas"]["AgentListItem"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description Value models: active first, then newest first, then id. */
     ValueModelList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every value model matching the filters and search, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
       /** @description One page of items, at most `limit`, in the documented order. */
       data: components["schemas"]["ValueModelSummary"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description Outcome types by summed quantity, largest first, then by name. */
@@ -2028,6 +2528,7 @@ export interface components {
       data: components["schemas"]["OutcomeTypeUsage"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description Templates in display order. */
@@ -2036,14 +2537,20 @@ export interface components {
       data: components["schemas"]["ValueTemplate"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description Line items, newest first, then id. */
     CostLineItemList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every line item matching the filters and search, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
       /** @description One page of items, at most `limit`, in the documented order. */
       data: components["schemas"]["CostLineItem"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description A client's calculations: latest period first, then newest first, then id. */
@@ -2052,6 +2559,7 @@ export interface components {
       data: components["schemas"]["CalculationSummary"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description A calculation's reports, newest first, then id. */
@@ -2060,14 +2568,48 @@ export interface components {
       data: components["schemas"]["ReportSummary"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
-    /** @description Clients with a renewal date, by renewal date, then name, then id. */
+    /** @description The workspace's calculations: latest period first, then newest first, then id. */
+    WorkspaceCalculationList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every calculation matching the filters, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
+      /** @description One page of items, at most `limit`, in the documented order. */
+      data: components["schemas"]["CalculationSummary"][];
+      /** @description Whether another page exists. */
+      has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
+      next_cursor: string | null;
+    };
+    /** @description The workspace's reports: newest first, then id. */
+    WorkspaceReportList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every report matching the filters, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
+      /** @description One page of items, at most `limit`, in the documented order. */
+      data: components["schemas"]["ReportSummary"][];
+      /** @description Whether another page exists. */
+      has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
+      next_cursor: string | null;
+    };
+    /** @description Active clients with a renewal date, by the renewal date shown, then by name case-insensitively, then by id. */
     RenewalList: {
+      /** @description The page requested, or `null` when the request did not send `page`. */
+      page: number | null;
+      /** @description Every client matching `window` and `renewal_term`, not only this page, or `null` when the request did not send `page`. */
+      total: number | null;
+      /** @description The date the renewal dates were rolled against and `window` measured from: the `today` sent, or the current UTC date. */
+      today: components["schemas"]["Date"];
       /** @description One page of items, at most `limit`, in the documented order. */
       data: components["schemas"]["Renewal"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
     };
     /** @description Every key in the workspace, revoked keys included, newest first, then id. */
@@ -2076,7 +2618,69 @@ export interface components {
       data: components["schemas"]["ApiKey"][];
       /** @description Whether another page exists. */
       has_more: boolean;
+      /** @description The opaque cursor for the next page. Clients must not parse it. */
       next_cursor: string | null;
+    };
+    /** @description A redeemed invite. The address can now sign in with an email code. */
+    InviteRedemption: {
+      /** @description The address the invite was sent to, in lower case. */
+      email: string;
+      /** @description When the invite's link stops working, 24 hours after the invite was sent. An invite whose address signs in before then no longer expires, and its workspace can be created after this instant. */
+      expires_at: components["schemas"]["Instant"];
+    };
+    /** @description The open invite to the signed-in session's email address. Its address has signed in, so it no longer expires. */
+    OpenInvite: {
+      /** @description The address the invite was sent to, in lower case. */
+      email: string;
+    };
+    WorkspaceCreate: {
+      /** @description The token from the invite link, exactly as the link carries it. A value that is not in the form of an invite token, `""` included, is `invalid_format`, and a token that names no invite is `unknown_reference`. Absent or `null` uses the open invite to the session's email address instead. It is used on create only and is never returned. */
+      invite_token?: string | null;
+      /** @description Free text, trimmed of white space (the Unicode `White_Space` property) at both ends. The trimmed name is stored. It holds 1 to 200 characters, counted in Unicode code points after trimming: blank after trimming is `required`, and longer than 200 characters after trimming is `too_long`. U+0000 is `invalid_format`, as in every request string. No JSON Schema keyword measures a length after trimming, so the schema states no `maxLength`; a `maxLength` of 200 would refuse a padded name the server accepts. */
+      name: string;
+      /** @description The workspace's currency, an ISO 4217 code in upper case. A lower-case code is `invalid_format`. Every money figure in the workspace is in it. */
+      currency: components["schemas"]["Currency"];
+    };
+    /** @description The workspace a credential belongs to. */
+    Workspace: {
+      id: components["schemas"]["Uuid"];
+      /** @description Free text. */
+      name: string;
+      currency: components["schemas"]["Currency"];
+      minor_units: components["schemas"]["MinorUnits"];
+      created_at: components["schemas"]["Instant"];
+    };
+    /**
+     * @description A guided-setup step, in its fixed order: `add_client`, `add_agent`, `price_outcomes`, `bring_in_data`, `create_draft_calculation`.
+     * @enum {string}
+     */
+    OnboardingStep:
+      | "add_client"
+      | "add_agent"
+      | "price_outcomes"
+      | "bring_in_data"
+      | "create_draft_calculation";
+    OnboardingStepProgress: {
+      step: components["schemas"]["OnboardingStep"] | (string & {});
+      /** @description Whether the workspace's data completes the step: a client; an agent assigned to a client; a line item on an active value model; an event; a calculation in any state. */
+      completed: boolean;
+      /** @description When the step was skipped, or `null` when it is not skipped. */
+      skipped_at: components["schemas"]["Instant"] | null;
+    };
+    /** @description The guided setup's progress. */
+    Onboarding: {
+      /** @description Every step, in the fixed order of `OnboardingStep`. */
+      steps: components["schemas"]["OnboardingStepProgress"][];
+      /** @description The first step neither completed nor skipped: where the owner resumes. `null` once every step is completed or skipped. */
+      current_step:
+        | (components["schemas"]["OnboardingStep"] | (string & {}))
+        | null;
+      /** @description Whether any calculation in the workspace is published. */
+      has_published: boolean;
+    };
+    OnboardingSkippedStepsSet: {
+      /** @description The steps to mark skipped, at most five. A repeated step is refused with `duplicate`, an unknown one with `invalid_value`. `[]` clears every skip. */
+      steps: components["schemas"]["OnboardingStep"][];
     };
   };
   responses: {
@@ -2418,6 +3022,29 @@ export interface components {
         };
       };
     };
+    /** @description A service the operation depends on did not respond successfully. Nothing was kept, so the request may be retried. */
+    UpstreamFailed: {
+      headers: {
+        "X-Request-Id": components["headers"]["X-Request-Id"];
+        [name: string]: unknown;
+      };
+      content: {
+        /**
+         * @example {
+         *       "type": "https://api.allisai.ai/errors/upstream_failed",
+         *       "title": "A service the API depends on did not respond successfully",
+         *       "status": 502,
+         *       "detail": "An internal error occurred. Quote the request id if you report it.",
+         *       "code": "upstream_failed",
+         *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+         *     }
+         */
+        "application/problem+json": components["schemas"]["Problem"] & {
+          /** @enum {unknown} */
+          code?: "upstream_failed";
+        };
+      };
+    };
     /** @description The request is invalid. On `GET` the code is `invalid_json` or `validation_failed`. No body: a response to `HEAD` carries the status and headers only, and no `Content-Length`. `Content-Type` is `application/problem+json`, as on `GET`; send the request as `GET` to read the problem document. */
     BadRequestHead: {
       headers: {
@@ -2466,6 +3093,10 @@ export interface components {
     Limit: number;
     /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
     Cursor: string;
+    /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+    NumberedPage: number;
+    /** @description Only rows whose name holds this text, matched case-insensitively and anywhere in the name. Every character matches itself: `%`, `_` and `\` are not wildcards. 1 to 200 characters; a longer value is refused with `too_long`. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. Combines with the filters by AND, and binds the cursor as a filter does. */
+    NameSearch: components["schemas"]["SearchText"];
     /**
      * @description Start of a half-open range, inclusive. Absent means unbounded. Must not be after `to`, or it is refused with `out_of_range` on `from`. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. When both bounds are sent, `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
      * @example 2026-08-01T00:00:00Z
@@ -2486,6 +3117,28 @@ export interface components {
      * @example 2026-09-01T00:00:00Z
      */
     ToRequired: components["schemas"]["InstantInput"];
+    /**
+     * @description Start of the period of event time, inclusive. Required, and refused with `required` when missing, unless `import_batch_id` is sent; then `from` and `to` are both sent or neither, and one without the other is refused with `required` on the missing one. Must not be after `to`, or it is refused with `out_of_range` on `from`. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+     * @example 2026-08-01T00:00:00Z
+     */
+    EventsFrom: components["schemas"]["InstantInput"];
+    /**
+     * @description End of the period of event time, exclusive. Required, and refused with `required` when missing, unless `import_batch_id` is sent; then `from` and `to` are both sent or neither. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+     * @example 2026-09-01T00:00:00Z
+     */
+    EventsTo: components["schemas"]["InstantInput"];
+    /** @description The arrival limit: only events the API stored before this instant. Leave it out on a view's first request, and the response issues one; send that value on later requests to read the same events. A value later than the server can yet hold still is refused with `out_of_range`, and so is one before `1900-01-01T00:00:00Z`. With `cursor`, it must name the cursor's limit, or the cursor is refused with `invalid_value`; without it, the cursor's limit applies. A cursor whose limit is later than the server can yet hold still is refused with `invalid_value` too. That happens only after a rare delay inside the database; reload the view without the cursor. With `import_batch_id`, it is issued and returned but not applied, because an import's events appear together when it commits. Otherwise an event falls below the limit a second or two after the API stores it, and later while a long request, such as a large import, is still in progress. A read straight after an ingest may not include it yet. */
+    AsOf: components["schemas"]["InstantInput"];
+    /** @description Only events that count toward this client: those carrying its client key, compared ignoring case and surrounding spaces, and those carrying no key from an agent assigned to this client alone. They are the events `GET /v1/clients/{id}/events` lists for it. An id that names no client in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+    EventClientFilter: components["schemas"]["UuidInput"];
+    /** @description Only events from this agent. An id that names no agent in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+    EventAgentFilter: components["schemas"]["UuidInput"];
+    /** @description Only events of this category. Any other value is refused with `invalid_value`. */
+    EventCategoryFilter: components["schemas"]["EventCategory"];
+    /** @description Only events with this outcome type, compared ignoring case and surrounding spaces. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. */
+    EventOutcomeTypeFilter: string;
+    /** @description Only events that arrived this way. Any other value is refused with `invalid_value`. */
+    EventSourceFilter: components["schemas"]["EventSource"];
     /** @description Optional, sent once. 1 to 255 characters of visible ASCII not starting with `"`, or a structured-field String of 1 to 255 visible ASCII characters; the quoted form `"abc"` is the same key as `abc`. A repeat within 24 hours, in the same workspace, with the same method, path, query, media type and body, replays the stored response with `Idempotent-Replayed: true`; with a different request it is `422` `idempotency_key_reused`; while the first is still running it is `409` `idempotency_key_in_use`. Only `2xx` outcomes are stored. A malformed value, `""` included, or the header sent twice is refused with `invalid_format`, located by `header`. */
     IdempotencyKey: string;
   };
@@ -2505,7 +3158,7 @@ export interface components {
     Location: string;
     /** @description `true` when this response is a replay of the stored response to an earlier request with the same `Idempotency-Key`; absent on the first response. The resource was not created again. */
     "Idempotent-Replayed": "true";
-    /** @description `no-store`: the response carries a secret or a shared report. */
+    /** @description `no-store`: the request or the response carries a secret, or the response carries a shared report. */
     "Cache-Control": "no-store";
     /** @description The patch formats the resource takes, sent with every `415` to a `PATCH` (RFC 5789 §2.2, §3.1). */
     "Accept-Patch": "application/merge-patch+json, application/json";
@@ -2810,6 +3463,109 @@ export interface operations {
       500: components["responses"]["InternalError"];
     };
   };
+  listEvents: {
+    parameters: {
+      query?: {
+        /**
+         * @description Start of the period of event time, inclusive. Required, and refused with `required` when missing, unless `import_batch_id` is sent; then `from` and `to` are both sent or neither, and one without the other is refused with `required` on the missing one. Must not be after `to`, or it is refused with `out_of_range` on `from`. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+         * @example 2026-08-01T00:00:00Z
+         */
+        from?: components["parameters"]["EventsFrom"];
+        /**
+         * @description End of the period of event time, exclusive. Required, and refused with `required` when missing, unless `import_batch_id` is sent; then `from` and `to` are both sent or neither. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+         * @example 2026-09-01T00:00:00Z
+         */
+        to?: components["parameters"]["EventsTo"];
+        /** @description The arrival limit: only events the API stored before this instant. Leave it out on a view's first request, and the response issues one; send that value on later requests to read the same events. A value later than the server can yet hold still is refused with `out_of_range`, and so is one before `1900-01-01T00:00:00Z`. With `cursor`, it must name the cursor's limit, or the cursor is refused with `invalid_value`; without it, the cursor's limit applies. A cursor whose limit is later than the server can yet hold still is refused with `invalid_value` too. That happens only after a rare delay inside the database; reload the view without the cursor. With `import_batch_id`, it is issued and returned but not applied, because an import's events appear together when it commits. Otherwise an event falls below the limit a second or two after the API stores it, and later while a long request, such as a large import, is still in progress. A read straight after an ingest may not include it yet. */
+        as_of?: components["parameters"]["AsOf"];
+        /** @description Only events that count toward this client: those carrying its client key, compared ignoring case and surrounding spaces, and those carrying no key from an agent assigned to this client alone. They are the events `GET /v1/clients/{id}/events` lists for it. An id that names no client in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        client_id?: components["parameters"]["EventClientFilter"];
+        /** @description Only events from this agent. An id that names no agent in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        agent_id?: components["parameters"]["EventAgentFilter"];
+        /** @description Only events of this category. Any other value is refused with `invalid_value`. */
+        category?: components["parameters"]["EventCategoryFilter"];
+        /** @description Only events with this outcome type, compared ignoring case and surrounding spaces. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. */
+        outcome_type?: components["parameters"]["EventOutcomeTypeFilter"];
+        /** @description Only events that arrived this way. Any other value is refused with `invalid_value`. */
+        source?: components["parameters"]["EventSourceFilter"];
+        /** @description Only the events one CSV import wrote: the `import_batch_id` the import returned. With it, `from` and `to` are optional, both or neither. `as_of` is issued and returned but not applied, because an import's events appear together when it commits, and `total` is exact. An id that names no import in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        import_batch_id?: components["schemas"]["UuidInput"];
+        /** @description Sort key. `timestamp` and `cost` default to descending; `agent_name`, `attributed_by` and `source` to ascending. `attributed_by` sorts events that carried a client key apart from those that did not. `cost` puts events without a cost last in both directions. An order other than `timestamp` descending needs `page` or a cursor issued in that order; without either it is refused with `required` on `page`. */
+        sort?: "timestamp" | "cost" | "agent_name" | "attributed_by" | "source";
+        /** @description Sort direction. Absent means the sort key's default. */
+        dir?: "asc" | "desc";
+        /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
+        limit?: components["parameters"]["Limit"];
+        /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
+        cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in the requested order at offset `(page − 1) × limit`, and fills `total` and `total_capped`. Without `page` nothing is counted, and `page`, `total` and `total_capped` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows. Under one `as_of`, a page's rows and their numbers stay the same on every request. */
+        page?: number;
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "as_of": "2026-08-31T05:02:00Z",
+           *       "period": {
+           *         "from": "2026-08-24T05:02:00Z",
+           *         "to": "2026-08-31T05:02:00Z"
+           *       },
+           *       "client_id": null,
+           *       "currency": "JPY",
+           *       "page": 1,
+           *       "total": 1,
+           *       "total_capped": false,
+           *       "data": [
+           *         {
+           *           "id": "9007199254740993",
+           *           "timestamp": "2026-08-30T03:12:45.5Z",
+           *           "agent_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+           *           "agent_name": "Support bot",
+           *           "category": "outcome",
+           *           "event_type": "ticket_closed",
+           *           "outcome_type": "ticket_resolved",
+           *           "quantity": 1,
+           *           "cost": null,
+           *           "tokens_in": null,
+           *           "tokens_out": null,
+           *           "model": null,
+           *           "client_key": "acme",
+           *           "source": "api",
+           *           "created_at": "2026-08-30T03:12:46.102Z",
+           *           "import_batch_id": null,
+           *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+           *           "client_name": "Acme Logistics"
+           *         }
+           *       ],
+           *       "has_more": false,
+           *       "next_cursor": null
+           *     }
+           */
+          "application/json": components["schemas"]["EventList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
   ingestEvents: {
     parameters: {
       query?: never;
@@ -2894,6 +3650,205 @@ export interface operations {
       413: components["responses"]["PayloadTooLarge"];
       414: components["responses"]["UriTooLong"];
       415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  getEventSummary: {
+    parameters: {
+      query: {
+        /**
+         * @description Start of the period, inclusive. Must not be after `to`, or it is refused with `out_of_range` on `from`. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. When both bounds are sent, `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+         * @example 2026-08-01T00:00:00Z
+         */
+        from: components["parameters"]["FromRequired"];
+        /**
+         * @description End of the period, exclusive. Required: an open period would prorate to the current day, so the figure would change with the day it was read. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. When both bounds are sent, `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+         * @example 2026-09-01T00:00:00Z
+         */
+        to: components["parameters"]["ToRequired"];
+        /** @description The arrival limit: only events the API stored before this instant. Leave it out on a view's first request, and the response issues one; send that value on later requests to read the same events. A value later than the server can yet hold still is refused with `out_of_range`, and so is one before `1900-01-01T00:00:00Z`. With `cursor`, it must name the cursor's limit, or the cursor is refused with `invalid_value`; without it, the cursor's limit applies. A cursor whose limit is later than the server can yet hold still is refused with `invalid_value` too. That happens only after a rare delay inside the database; reload the view without the cursor. With `import_batch_id`, it is issued and returned but not applied, because an import's events appear together when it commits. Otherwise an event falls below the limit a second or two after the API stores it, and later while a long request, such as a large import, is still in progress. A read straight after an ingest may not include it yet. */
+        as_of?: components["parameters"]["AsOf"];
+        /** @description Only events that count toward this client: those carrying its client key, compared ignoring case and surrounding spaces, and those carrying no key from an agent assigned to this client alone. They are the events `GET /v1/clients/{id}/events` lists for it. An id that names no client in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        client_id?: components["parameters"]["EventClientFilter"];
+        /** @description Only events from this agent. An id that names no agent in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        agent_id?: components["parameters"]["EventAgentFilter"];
+        /** @description Only events of this category. Any other value is refused with `invalid_value`. */
+        category?: components["parameters"]["EventCategoryFilter"];
+        /** @description Only events with this outcome type, compared ignoring case and surrounding spaces. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. */
+        outcome_type?: components["parameters"]["EventOutcomeTypeFilter"];
+        /** @description Only events that arrived this way. Any other value is refused with `invalid_value`. */
+        source?: components["parameters"]["EventSourceFilter"];
+        /** @description Only the events one CSV import wrote: the `import_batch_id` the import returned. `as_of` is then issued and returned but not applied, as on the list. An id that names no import in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        import_batch_id?: components["schemas"]["UuidInput"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "as_of": "2026-08-31T05:02:00Z",
+           *       "period": {
+           *         "from": "2026-08-28T15:00:00Z",
+           *         "to": "2026-08-31T15:00:00Z"
+           *       },
+           *       "client_id": null,
+           *       "total": 5,
+           *       "days": [
+           *         {
+           *           "start": "2026-08-28T15:00:00Z",
+           *           "count": 3
+           *         },
+           *         {
+           *           "start": "2026-08-29T15:00:00Z",
+           *           "count": 0
+           *         },
+           *         {
+           *           "start": "2026-08-30T15:00:00Z",
+           *           "count": 2
+           *         }
+           *       ],
+           *       "categories": [
+           *         {
+           *           "category": "session",
+           *           "count": 0
+           *         },
+           *         {
+           *           "category": "task",
+           *           "count": 1
+           *         },
+           *         {
+           *           "category": "model",
+           *           "count": 3
+           *         },
+           *         {
+           *           "category": "outcome",
+           *           "count": 1
+           *         },
+           *         {
+           *           "category": "exception",
+           *           "count": 0
+           *         }
+           *       ]
+           *     }
+           */
+          "application/json": components["schemas"]["EventSummary"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  listEventArrivals: {
+    parameters: {
+      query?: {
+        /** @description Start of the arrival window, inclusive: only events the API stored at or after this instant. At most 24 hours before the request; an earlier one is refused with `out_of_range`, and a feed further behind reloads without `since`. It must not be after the response's `as_of`, the one sent, the cursor's or the one issued, or it is refused with `out_of_range`; reload the feed without `since`. Equal to it, the window is empty. Without it, `count` and `count_capped` are `null`. */
+        since?: components["schemas"]["InstantInput"];
+        /** @description The arrival limit: only events the API stored before this instant. Leave it out on a view's first request, and the response issues one; send that value on later requests to read the same events. A value later than the server can yet hold still is refused with `out_of_range`, and so is one before `1900-01-01T00:00:00Z`. With `cursor`, it must name the cursor's limit, or the cursor is refused with `invalid_value`; without it, the cursor's limit applies. A cursor whose limit is later than the server can yet hold still is refused with `invalid_value` too. That happens only after a rare delay inside the database; reload the view without the cursor. With `import_batch_id`, it is issued and returned but not applied, because an import's events appear together when it commits. Otherwise an event falls below the limit a second or two after the API stores it, and later while a long request, such as a large import, is still in progress. A read straight after an ingest may not include it yet. */
+        as_of?: components["parameters"]["AsOf"];
+        /**
+         * @description Start of a half-open range, inclusive. Absent means unbounded. Must not be after `to`, or it is refused with `out_of_range` on `from`. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. When both bounds are sent, `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+         * @example 2026-08-01T00:00:00Z
+         */
+        from?: components["parameters"]["FromOptional"];
+        /**
+         * @description End of a half-open range, exclusive. Absent means unbounded. Each sent bound must be at or after `1900-01-01T00:00:00Z` and before `10000-01-01T00:00:00Z`; otherwise it is refused with `out_of_range` on its own parameter. Digits below a microsecond are dropped before any check. When both bounds are sent, `to` may be at most 731 days after `from`; a longer period is refused with `out_of_range` on `from`.
+         * @example 2026-09-01T00:00:00Z
+         */
+        to?: components["parameters"]["ToOptional"];
+        /** @description Only events that count toward this client: those carrying its client key, compared ignoring case and surrounding spaces, and those carrying no key from an agent assigned to this client alone. They are the events `GET /v1/clients/{id}/events` lists for it. An id that names no client in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        client_id?: components["parameters"]["EventClientFilter"];
+        /** @description Only events from this agent. An id that names no agent in the workspace matches no event. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        agent_id?: components["parameters"]["EventAgentFilter"];
+        /** @description Only events of this category. Any other value is refused with `invalid_value`. */
+        category?: components["parameters"]["EventCategoryFilter"];
+        /** @description Only events with this outcome type, compared ignoring case and surrounding spaces. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. */
+        outcome_type?: components["parameters"]["EventOutcomeTypeFilter"];
+        /** @description Only events that arrived this way. Any other value is refused with `invalid_value`. */
+        source?: components["parameters"]["EventSourceFilter"];
+        /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
+        limit?: components["parameters"]["Limit"];
+        /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
+        cursor?: components["parameters"]["Cursor"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "as_of": "2026-08-31T05:02:05Z",
+           *       "since": "2026-08-31T05:02:00Z",
+           *       "period": {
+           *         "from": null,
+           *         "to": null
+           *       },
+           *       "client_id": null,
+           *       "currency": "JPY",
+           *       "count": 1,
+           *       "count_capped": false,
+           *       "data": [
+           *         {
+           *           "id": "9007199254741001",
+           *           "timestamp": "2026-08-31T05:02:01Z",
+           *           "agent_id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
+           *           "agent_name": "Support bot",
+           *           "category": "model",
+           *           "event_type": "completion",
+           *           "outcome_type": null,
+           *           "quantity": 1,
+           *           "cost": 0.3683,
+           *           "tokens_in": 1840,
+           *           "tokens_out": 312,
+           *           "model": "gpt-4o",
+           *           "client_key": null,
+           *           "source": "api",
+           *           "created_at": "2026-08-31T05:02:02.481Z",
+           *           "import_batch_id": null,
+           *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+           *           "client_name": "Acme Logistics"
+           *         }
+           *       ],
+           *       "has_more": false,
+           *       "next_cursor": null
+           *     }
+           */
+          "application/json": components["schemas"]["EventArrivalList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
       429: components["responses"]["RateLimited"];
       500: components["responses"]["InternalError"];
     };
@@ -3019,6 +3974,62 @@ export interface operations {
       500: components["responses"]["InternalError"];
     };
   };
+  listImports: {
+    parameters: {
+      query?: {
+        /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
+        limit?: components["parameters"]["Limit"];
+        /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
+        cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "page": 1,
+           *       "total": 1,
+           *       "data": [
+           *         {
+           *           "id": "9c0d1e2f-3a4b-4c5d-9e6f-708192a3b4c5",
+           *           "filename": "support-bot-august.csv",
+           *           "total_rows": 1200,
+           *           "accepted": 1180,
+           *           "duplicates": 15,
+           *           "rejected": 5,
+           *           "created_at": "2026-09-01T02:30:00Z"
+           *         }
+           *       ],
+           *       "has_more": false,
+           *       "next_cursor": null
+           *     }
+           */
+          "application/json": components["schemas"]["ImportList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
   commitImport: {
     parameters: {
       query?: never;
@@ -3126,13 +4137,77 @@ export interface operations {
       500: components["responses"]["InternalError"];
     };
   };
+  getImport: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        /** @description A resource id, in the RFC 9562 string form in either case. A malformed or unknown id is `404` `not_found`, so the response never reveals whether a resource exists; a spelling such as `{<uuid>}` or `urn:uuid:<uuid>` is malformed. */
+        id: components["parameters"]["Id"];
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "id": "9c0d1e2f-3a4b-4c5d-9e6f-708192a3b4c5",
+           *       "filename": "support-bot-august.csv",
+           *       "total_rows": 1200,
+           *       "accepted": 1180,
+           *       "duplicates": 15,
+           *       "rejected": 5,
+           *       "created_at": "2026-09-01T02:30:00Z",
+           *       "mapping": {
+           *         "columns": {
+           *           "timestamp": "Time",
+           *           "agent_key": "Agent",
+           *           "client_key": "Client",
+           *           "category": "Category",
+           *           "event_type": "Type",
+           *           "cost": "Cost"
+           *         },
+           *         "constants": {},
+           *         "timezone": "Asia/Tokyo",
+           *         "delimiter": ","
+           *       }
+           *     }
+           */
+          "application/json": components["schemas"]["Import"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      404: components["responses"]["NotFound"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
   listClients: {
     parameters: {
       query?: {
+        /** @description Only rows whose name holds this text, matched case-insensitively and anywhere in the name. Every character matches itself: `%`, `_` and `\` are not wildcards. 1 to 200 characters; a longer value is refused with `too_long`. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. Combines with the filters by AND, and binds the cursor as a filter does. */
+        q?: components["parameters"]["NameSearch"];
+        /** @description Only clients with this status. Any other value is refused with `invalid_value`. */
+        status?: components["schemas"]["ClientStatus"];
         /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
         limit?: components["parameters"]["Limit"];
         /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
         cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
       };
       header?: never;
       path?: never;
@@ -3151,13 +4226,16 @@ export interface operations {
         content: {
           /**
            * @example {
+           *       "page": 1,
+           *       "total": 1,
            *       "data": [
            *         {
            *           "id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *           "name": "Acme Logistics",
            *           "status": "active",
            *           "client_key": "acme",
-           *           "renewal_date": "2026-12-31",
+           *           "renewal_date": "2030-12-31",
+           *           "renewal_term": "annual",
            *           "notes": "",
            *           "created_at": "2026-07-14T09:30:00Z"
            *         }
@@ -3195,7 +4273,8 @@ export interface operations {
          *       "name": "Acme Logistics",
          *       "status": "active",
          *       "client_key": "acme",
-         *       "renewal_date": "2026-12-31"
+         *       "renewal_date": "2030-12-31",
+         *       "renewal_term": "annual"
          *     }
          */
         "application/json": components["schemas"]["ClientCreate"];
@@ -3219,7 +4298,8 @@ export interface operations {
            *       "name": "Acme Logistics",
            *       "status": "active",
            *       "client_key": "acme",
-           *       "renewal_date": "2026-12-31",
+           *       "renewal_date": "2030-12-31",
+           *       "renewal_term": "annual",
            *       "notes": "",
            *       "created_at": "2026-07-14T09:30:00Z"
            *     }
@@ -3244,7 +4324,7 @@ export interface operations {
            *       "type": "https://api.allisai.ai/errors/client_key_in_use",
            *       "title": "The client key is in use",
            *       "status": 409,
-           *       "detail": "Another client in the workspace already has this `client_key`.",
+           *       "detail": "Another client in the workspace already has this `client_key`; keys are compared ignoring case.",
            *       "code": "client_key_in_use",
            *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
            *     }
@@ -3290,7 +4370,8 @@ export interface operations {
            *       "name": "Acme Logistics",
            *       "status": "active",
            *       "client_key": "acme",
-           *       "renewal_date": "2026-12-31",
+           *       "renewal_date": "2030-12-31",
+           *       "renewal_term": "annual",
            *       "notes": "",
            *       "created_at": "2026-07-14T09:30:00Z",
            *       "agents": [
@@ -3407,7 +4488,8 @@ export interface operations {
            *       "name": "Acme Logistics",
            *       "status": "churned",
            *       "client_key": "acme",
-           *       "renewal_date": "2026-12-31",
+           *       "renewal_date": "2030-12-31",
+           *       "renewal_term": "annual",
            *       "notes": "",
            *       "created_at": "2026-07-14T09:30:00Z"
            *     }
@@ -3540,6 +4622,7 @@ export interface operations {
            *       "currency": "JPY",
            *       "created_at": "2026-07-20T01:00:00Z",
            *       "updated_at": "2026-08-02T04:15:00Z",
+           *       "archived_at": null,
            *       "line_items": [
            *         {
            *           "id": "4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80",
@@ -3643,6 +4726,7 @@ export interface operations {
            *       "currency": "JPY",
            *       "created_at": "2026-07-20T01:00:00Z",
            *       "updated_at": "2026-07-20T01:00:00Z",
+           *       "archived_at": null,
            *       "line_items": [
            *         {
            *           "id": "4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80",
@@ -3798,6 +4882,7 @@ export interface operations {
            *       "currency": "JPY",
            *       "created_at": "2026-07-20T01:00:00Z",
            *       "updated_at": "2026-08-02T04:15:00Z",
+           *       "archived_at": "2026-08-02T04:15:00Z",
            *       "line_items": [
            *         {
            *           "id": "4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80",
@@ -3909,6 +4994,7 @@ export interface operations {
            *       "currency": "JPY",
            *       "created_at": "2026-07-20T01:00:00Z",
            *       "updated_at": "2026-08-02T04:15:00Z",
+           *       "archived_at": null,
            *       "line_items": [
            *         {
            *           "id": "4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80",
@@ -4485,7 +5571,11 @@ export interface operations {
            *           "tokens_out": null,
            *           "model": null,
            *           "client_key": "acme",
-           *           "source": "api"
+           *           "source": "api",
+           *           "created_at": "2026-08-14T03:12:46.102Z",
+           *           "import_batch_id": null,
+           *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+           *           "client_name": "Acme Logistics"
            *         },
            *         {
            *           "id": "9007199254740992",
@@ -4501,7 +5591,11 @@ export interface operations {
            *           "tokens_out": 312,
            *           "model": "gpt-4o",
            *           "client_key": null,
-           *           "source": "csv"
+           *           "source": "csv",
+           *           "created_at": "2026-09-01T00:20:00Z",
+           *           "import_batch_id": "4d3c2b1a-0f9e-4d8c-b7a6-5f4e3d2c1b0a",
+           *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+           *           "client_name": "Acme Logistics"
            *         }
            *       ],
            *       "has_more": false,
@@ -4553,6 +5647,7 @@ export interface operations {
            *         {
            *           "id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
            *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+           *           "client_name": "Acme Logistics",
            *           "state": "published",
            *           "period": {
            *             "from": "2026-08-01T00:00:00Z",
@@ -4577,7 +5672,8 @@ export interface operations {
            *           "created_at": "2026-09-02T00:10:00Z",
            *           "validated_at": "2026-09-02T00:40:00Z",
            *           "published_at": "2026-09-02T00:45:00Z",
-           *           "is_current": true
+           *           "is_current": true,
+           *           "coverage_findings": 2
            *         }
            *       ],
            *       "has_more": false,
@@ -4889,10 +5985,16 @@ export interface operations {
   listAgents: {
     parameters: {
       query?: {
+        /** @description Only rows whose name holds this text, matched case-insensitively and anywhere in the name. Every character matches itself: `%`, `_` and `\` are not wildcards. 1 to 200 characters; a longer value is refused with `too_long`. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. Combines with the filters by AND, and binds the cursor as a filter does. */
+        q?: components["parameters"]["NameSearch"];
+        /** @description Only agents with this status. Any other value is refused with `invalid_value`. */
+        status?: components["schemas"]["AgentStatus"];
         /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
         limit?: components["parameters"]["Limit"];
         /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
         cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
       };
       header?: never;
       path?: never;
@@ -4911,6 +6013,8 @@ export interface operations {
         content: {
           /**
            * @example {
+           *       "page": null,
+           *       "total": null,
            *       "data": [
            *         {
            *           "id": "1a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d",
@@ -5217,10 +6321,18 @@ export interface operations {
   listValueModels: {
     parameters: {
       query?: {
+        /** @description Only rows whose name holds this text, matched case-insensitively and anywhere in the name. Every character matches itself: `%`, `_` and `\` are not wildcards. 1 to 200 characters; a longer value is refused with `too_long`. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. Combines with the filters by AND, and binds the cursor as a filter does. */
+        q?: components["parameters"]["NameSearch"];
+        /** @description Only models with this status. Any other value is refused with `invalid_value`. */
+        status?: components["schemas"]["ValueModelStatus"];
+        /** @description Only this client's models. An id that names no client in the workspace matches no model, so the list is empty. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        client_id?: components["schemas"]["UuidInput"];
         /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
         limit?: components["parameters"]["Limit"];
         /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
         cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
       };
       header?: never;
       path?: never;
@@ -5239,6 +6351,8 @@ export interface operations {
         content: {
           /**
            * @example {
+           *       "page": null,
+           *       "total": null,
            *       "data": [
            *         {
            *           "id": "3c4d5e6f-7a8b-4c9d-8e0f-2a3b4c5d6e7f",
@@ -5299,6 +6413,7 @@ export interface operations {
            *       "currency": "JPY",
            *       "created_at": "2026-07-20T01:00:00Z",
            *       "updated_at": "2026-08-02T04:15:00Z",
+           *       "archived_at": null,
            *       "line_items": [
            *         {
            *           "id": "4d5e6f7a-8b9c-4d0e-9f1a-3b4c5d6e7f80",
@@ -5450,10 +6565,18 @@ export interface operations {
   listCostLineItems: {
     parameters: {
       query?: {
+        /** @description Only line items whose label holds this text, matched case-insensitively and anywhere in the label. Every character matches itself: `%`, `_` and `\` are not wildcards. 1 to 200 characters; a longer value is refused with `too_long`. An empty value, or one with leading or trailing whitespace, is refused with `invalid_format`. Combines with the filters by AND, and binds the cursor as a filter does. */
+        q?: components["schemas"]["SearchText"];
+        /** @description Only line items charged to a client, or only those charged to an agent. Any other value is refused with `invalid_value`. */
+        target_kind?: components["schemas"]["CostTargetKind"];
+        /** @description Only line items charged to this client or agent, the line item's `target.id`. An id that names nothing in the workspace matches no line item, so the list is empty. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        target_id?: components["schemas"]["UuidInput"];
         /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
         limit?: components["parameters"]["Limit"];
         /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
         cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
       };
       header?: never;
       path?: never;
@@ -5472,6 +6595,8 @@ export interface operations {
         content: {
           /**
            * @example {
+           *       "page": null,
+           *       "total": null,
            *       "data": [
            *         {
            *           "id": "5e6f7a8b-9c0d-4e1f-8a2b-4c5d6e7f8091",
@@ -5861,6 +6986,90 @@ export interface operations {
       413: components["responses"]["PayloadTooLarge"];
       414: components["responses"]["UriTooLong"];
       415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  listCalculations: {
+    parameters: {
+      query?: {
+        /** @description Only this client's calculations. An id that names no client in the workspace matches no calculation, so the list is empty. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        client_id?: components["schemas"]["UuidInput"];
+        /** @description Only calculations in this state. Any other value is refused with `invalid_value`. */
+        state?: components["schemas"]["CalculationState"];
+        /** @description Only calculations whose period is exactly this calendar month in UTC, from its first instant to the first instant of the next. A period with any other bounds, such as a quarter, a week inside the month, or the month bounded at another offset, does not match. A value not in `YYYY-MM` form is refused with `invalid_format`, and a month before `1900-01` or after `9999-12` with `out_of_range`. */
+        month?: components["schemas"]["Month"];
+        /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
+        limit?: components["parameters"]["Limit"];
+        /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
+        cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "page": 1,
+           *       "total": 1,
+           *       "data": [
+           *         {
+           *           "id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+           *           "client_name": "Acme Logistics",
+           *           "state": "published",
+           *           "period": {
+           *             "from": "2026-08-01T00:00:00Z",
+           *             "to": "2026-09-01T00:00:00Z"
+           *           },
+           *           "currency": "JPY",
+           *           "minor_units": 0,
+           *           "value_total": 408000,
+           *           "cost_total": 85100,
+           *           "ratios": {
+           *             "roi": 3.7943595769682728,
+           *             "value_to_cost": 4.794359576968272,
+           *             "undefined_reason": null
+           *           },
+           *           "checklist": {
+           *             "coverage_confirmed": true,
+           *             "counts_spot_checked": true,
+           *             "costs_reviewed": true,
+           *             "unit_values_current": true,
+           *             "note": "Spot-checked 20 tickets against the helpdesk export."
+           *           },
+           *           "created_at": "2026-09-02T00:10:00Z",
+           *           "validated_at": "2026-09-02T00:40:00Z",
+           *           "published_at": "2026-09-02T00:45:00Z",
+           *           "is_current": true,
+           *           "coverage_findings": 2
+           *         }
+           *       ],
+           *       "has_more": false,
+           *       "next_cursor": null
+           *     }
+           */
+          "application/json": components["schemas"]["WorkspaceCalculationList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
       429: components["responses"]["RateLimited"];
       500: components["responses"]["InternalError"];
     };
@@ -6708,8 +7917,15 @@ export interface operations {
            *         {
            *           "id": "8b9c0d1e-2f3a-4b4c-8d5e-6f708192a3b4",
            *           "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *           "client_name": "Acme Logistics",
-           *           "workspace_name": "Northwind AI",
+           *           "period": {
+           *             "from": "2026-08-01T00:00:00Z",
+           *             "to": "2026-09-01T00:00:00Z"
+           *           },
+           *           "state": "draft",
+           *           "letterhead_client_name": "Acme Logistics",
+           *           "letterhead_workspace_name": "Northwind AI",
            *           "note": "August was the first full month on the new routing rules.",
            *           "share_token": null,
            *           "shared_at": null,
@@ -6766,8 +7982,15 @@ export interface operations {
            * @example {
            *       "id": "8b9c0d1e-2f3a-4b4c-8d5e-6f708192a3b4",
            *       "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *       "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *       "client_name": "Acme Logistics",
-           *       "workspace_name": "Northwind AI",
+           *       "period": {
+           *         "from": "2026-08-01T00:00:00Z",
+           *         "to": "2026-09-01T00:00:00Z"
+           *       },
+           *       "state": "draft",
+           *       "letterhead_client_name": "Acme Logistics",
+           *       "letterhead_workspace_name": "Northwind AI",
            *       "note": "August was the first full month on the new routing rules.",
            *       "disclosures": [
            *         {
@@ -6840,6 +8063,77 @@ export interface operations {
       500: components["responses"]["InternalError"];
     };
   };
+  listReports: {
+    parameters: {
+      query?: {
+        /** @description Only reports on this client's calculations. An id that names no client in the workspace matches no report, so the list is empty. An id in any spelling but the RFC 9562 string form is refused with `invalid_format`. */
+        client_id?: components["schemas"]["UuidInput"];
+        /** @description Only reports in this state. Any other value is refused with `invalid_value`. */
+        state?: components["schemas"]["ReportState"];
+        /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
+        limit?: components["parameters"]["Limit"];
+        /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
+        cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
+      };
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "page": null,
+           *       "total": null,
+           *       "data": [
+           *         {
+           *           "id": "8b9c0d1e-2f3a-4b4c-8d5e-6f708192a3b4",
+           *           "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
+           *           "client_name": "Acme Logistics",
+           *           "period": {
+           *             "from": "2026-08-01T00:00:00Z",
+           *             "to": "2026-09-01T00:00:00Z"
+           *           },
+           *           "state": "shared",
+           *           "letterhead_client_name": "Acme Logistics K.K.",
+           *           "letterhead_workspace_name": "Northwind AI",
+           *           "note": "August was the first full month on the new routing rules.",
+           *           "share_token": "q3Vb8Kx0dT1uYwZr5LmN2oPa7sCe4fGh9iJk6lMn0Qp",
+           *           "shared_at": "2026-09-03T01:00:00Z",
+           *           "revoked_at": null,
+           *           "first_viewed_at": "2026-09-03T05:20:00Z",
+           *           "last_viewed_at": "2026-09-04T09:10:00Z",
+           *           "created_at": "2026-09-02T01:00:00Z"
+           *         }
+           *       ],
+           *       "has_more": false,
+           *       "next_cursor": null
+           *     }
+           */
+          "application/json": components["schemas"]["WorkspaceReportList"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
   getReport: {
     parameters: {
       query?: never;
@@ -6865,8 +8159,15 @@ export interface operations {
            * @example {
            *       "id": "8b9c0d1e-2f3a-4b4c-8d5e-6f708192a3b4",
            *       "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *       "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *       "client_name": "Acme Logistics",
-           *       "workspace_name": "Northwind AI",
+           *       "period": {
+           *         "from": "2026-08-01T00:00:00Z",
+           *         "to": "2026-09-01T00:00:00Z"
+           *       },
+           *       "state": "draft",
+           *       "letterhead_client_name": "Acme Logistics",
+           *       "letterhead_workspace_name": "Northwind AI",
            *       "note": "August was the first full month on the new routing rules.",
            *       "disclosures": [
            *         {
@@ -7117,8 +8418,15 @@ export interface operations {
            * @example {
            *       "id": "8b9c0d1e-2f3a-4b4c-8d5e-6f708192a3b4",
            *       "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *       "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *       "client_name": "Acme Logistics",
-           *       "workspace_name": "Northwind AI",
+           *       "period": {
+           *         "from": "2026-08-01T00:00:00Z",
+           *         "to": "2026-09-01T00:00:00Z"
+           *       },
+           *       "state": "draft",
+           *       "letterhead_client_name": "Acme Logistics",
+           *       "letterhead_workspace_name": "Northwind AI",
            *       "note": "August was the first full month on the new routing rules.",
            *       "disclosures": [
            *         {
@@ -7214,8 +8522,15 @@ export interface operations {
            * @example {
            *       "id": "8b9c0d1e-2f3a-4b4c-8d5e-6f708192a3b4",
            *       "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *       "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *       "client_name": "Acme Logistics",
-           *       "workspace_name": "Northwind AI",
+           *       "period": {
+           *         "from": "2026-08-01T00:00:00Z",
+           *         "to": "2026-09-01T00:00:00Z"
+           *       },
+           *       "state": "shared",
+           *       "letterhead_client_name": "Acme Logistics",
+           *       "letterhead_workspace_name": "Northwind AI",
            *       "note": "August was the first full month on the new routing rules.",
            *       "disclosures": [
            *         {
@@ -7307,8 +8622,15 @@ export interface operations {
            * @example {
            *       "id": "8b9c0d1e-2f3a-4b4c-8d5e-6f708192a3b4",
            *       "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
+           *       "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *       "client_name": "Acme Logistics",
-           *       "workspace_name": "Northwind AI",
+           *       "period": {
+           *         "from": "2026-08-01T00:00:00Z",
+           *         "to": "2026-09-01T00:00:00Z"
+           *       },
+           *       "state": "revoked",
+           *       "letterhead_client_name": "Acme Logistics",
+           *       "letterhead_workspace_name": "Northwind AI",
            *       "note": "August was the first full month on the new routing rules.",
            *       "disclosures": [
            *         {
@@ -7425,7 +8747,7 @@ export interface operations {
            *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *           "name": "Acme Logistics",
            *           "status": "active",
-           *           "renewal_date": "2026-12-31",
+           *           "renewal_date": "2030-12-31",
            *           "value_total": 408000,
            *           "cost_total": 85100,
            *           "roi": 3.7943595769682728,
@@ -7448,7 +8770,7 @@ export interface operations {
            *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *           "name": "Acme Logistics",
            *           "status": "active",
-           *           "renewal_date": "2026-12-31",
+           *           "renewal_date": "2030-12-31",
            *           "value_total": 408000,
            *           "cost_total": 85100,
            *           "roi": 3.7943595769682728,
@@ -7514,10 +8836,21 @@ export interface operations {
   listRenewals: {
     parameters: {
       query?: {
+        /**
+         * @description The caller's current date, which every renewal date is rolled against and `window` is measured from. From the current UTC date less one day to the current UTC date plus one, so that any time zone's date is accepted; any other date is refused with `out_of_range`. Absent means the current UTC date. The response's `today` says which date applied, and a cursor is valid only under that date, so send it on later pages. A later page that leaves `today` out and is read after midnight UTC is refused with `invalid_value` on `cursor`.
+         * @example 2026-11-10
+         */
+        today?: components["schemas"]["DateInput"];
+        /** @description Only clients whose renewal date falls in this window. Absent lists every date. Any other value is refused with `invalid_value`. */
+        window?: components["schemas"]["RenewalWindow"];
+        /** @description Only clients with one of these terms, `none` naming a client with no term. Repeat the parameter for several terms, as in `renewal_term=annual&renewal_term=none`; their order does not matter. Absent lists every term. A value sent twice is refused with `duplicate`, and any other value with `invalid_value`. */
+        renewal_term?: components["schemas"]["RenewalTermFilter"][];
         /** @description Page size, 1 to 200. A value outside the range is refused with `out_of_range`, never clamped. */
         limit?: components["parameters"]["Limit"];
         /** @description `next_cursor` from the previous page. Valid only with the filters and sort it was issued under; otherwise refused with `invalid_value`. An empty value is refused with `invalid_format`, like any empty query parameter. `limit` may change between pages. */
         cursor?: components["parameters"]["Cursor"];
+        /** @description Page number, from 1. Reads the list in its documented order at offset `(page − 1) × limit`, and fills `total` with the count of every row matching the filters and search. Without `page` nothing is counted, and `page` and `total` are `null`. Not with `cursor`: both together are refused with `mutually_exclusive` on `cursor`. The offset must not exceed 10,000,000; a larger one is refused with `out_of_range` on `page`. A page past the last returns no rows and the true `total`. The response's `next_cursor` continues the list after the page's last row, so a cursor walk can start from any page. */
+        page?: components["parameters"]["NumberedPage"];
       };
       header?: never;
       path?: never;
@@ -7536,16 +8869,21 @@ export interface operations {
         content: {
           /**
            * @example {
+           *       "page": 1,
+           *       "total": 1,
+           *       "today": "2026-11-10",
            *       "data": [
            *         {
            *           "client_id": "6f1c2d3e-4b5a-4c6d-8e7f-90a1b2c3d4e5",
            *           "name": "Acme Logistics",
-           *           "renewal_date": "2026-12-31",
+           *           "renewal_date": "2030-12-31",
+           *           "renewal_term": "annual",
            *           "roi": 3.7943595769682728,
            *           "period": {
            *             "from": "2026-08-01T00:00:00Z",
            *             "to": "2026-09-01T00:00:00Z"
            *           },
+           *           "calculation_id": "7a8b9c0d-1e2f-4a3b-9c4d-5e6f708192a3",
            *           "health": {
            *             "direction": "improving",
            *             "delta_points": 41.9,
@@ -7798,6 +9136,469 @@ export interface operations {
       };
       413: components["responses"]["PayloadTooLarge"];
       414: components["responses"]["UriTooLong"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  getInvite: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. The invite is open, and its address has signed in. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "email": "owner@acme.example"
+           *     }
+           */
+          "application/json": components["schemas"]["OpenInvite"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      /** @description `session_required`: any API key, whatever its scopes. */
+      403: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "type": "https://api.allisai.ai/errors/session_required",
+           *       "title": "This action requires a signed-in session",
+           *       "status": 403,
+           *       "detail": "This action requires a signed-in session; API keys cannot perform it.",
+           *       "code": "session_required",
+           *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+           *     }
+           */
+          "application/problem+json": components["schemas"]["Problem"] & {
+            /** @enum {unknown} */
+            code?: "session_required";
+          };
+        };
+      };
+      /** @description No open invite to the session's email address, or the session has no email address. */
+      404: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "type": "https://api.allisai.ai/errors/not_found",
+           *       "title": "The resource was not found",
+           *       "status": 404,
+           *       "detail": "no open invite for this account",
+           *       "code": "not_found",
+           *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+           *     }
+           */
+          "application/problem+json": components["schemas"]["Problem"] & {
+            /** @enum {unknown} */
+            code?: "not_found";
+          };
+        };
+      };
+      /** @description `invite_expired`: the invite's address did not sign in within the 24 hours after it was sent. `email_has_workspace`: the session's account or the invited address already belongs to a workspace. Checked in that order. */
+      409: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "type": "https://api.allisai.ai/errors/invite_expired",
+           *       "title": "The invite has expired",
+           *       "status": 409,
+           *       "detail": "This invite has expired. Reply to the invite email to ask for a new one.",
+           *       "code": "invite_expired",
+           *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+           *     }
+           */
+          "application/problem+json": components["schemas"]["Problem"] & {
+            /** @enum {unknown} */
+            code?: "invite_expired" | "email_has_workspace";
+          };
+        };
+      };
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  redeemInvite: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. The invited address can now sign in. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          "Cache-Control": components["headers"]["Cache-Control"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "email": "owner@acme.example",
+           *       "expires_at": "2026-11-03T09:14:00Z"
+           *     }
+           */
+          "application/json": components["schemas"]["InviteRedemption"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      /** @description The token is missing, malformed or unknown. */
+      404: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          "Cache-Control": components["headers"]["Cache-Control"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "type": "https://api.allisai.ai/errors/not_found",
+           *       "title": "The resource was not found",
+           *       "status": 404,
+           *       "detail": "invite not found",
+           *       "code": "not_found",
+           *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+           *     }
+           */
+          "application/problem+json": components["schemas"]["Problem"] & {
+            /** @enum {unknown} */
+            code?: "not_found";
+          };
+        };
+      };
+      /** @description `invite_revoked`, `invite_used` or `invite_expired`: the invite is not open, checked in that order. `email_has_workspace`: the invited address already belongs to a workspace. */
+      409: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          "Cache-Control": components["headers"]["Cache-Control"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "type": "https://api.allisai.ai/errors/invite_expired",
+           *       "title": "The invite has expired",
+           *       "status": 409,
+           *       "detail": "This invite has expired. Reply to the invite email to ask for a new one.",
+           *       "code": "invite_expired",
+           *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+           *     }
+           */
+          "application/problem+json": components["schemas"]["Problem"] & {
+            /** @enum {unknown} */
+            code?:
+              | "invite_revoked"
+              | "invite_used"
+              | "invite_expired"
+              | "email_has_workspace";
+          };
+        };
+      };
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      500: components["responses"]["InternalError"];
+      502: components["responses"]["UpstreamFailed"];
+    };
+  };
+  getWorkspace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "id": "0f8e2c1a-5b3d-4e6f-8a7b-9c0d1e2f3a4b",
+           *       "name": "Acme AI",
+           *       "currency": "JPY",
+           *       "minor_units": 0,
+           *       "created_at": "2026-11-02T10:01:12Z"
+           *     }
+           */
+          "application/json": components["schemas"]["Workspace"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  createWorkspace: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "invite_token": "<token from the invite link>",
+         *       "name": "Acme AI",
+         *       "currency": "JPY"
+         *     }
+         */
+        "application/json": components["schemas"]["WorkspaceCreate"];
+      };
+    };
+    responses: {
+      /** @description Created. */
+      201: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          Location: components["headers"]["Location"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "id": "0f8e2c1a-5b3d-4e6f-8a7b-9c0d1e2f3a4b",
+           *       "name": "Acme AI",
+           *       "currency": "JPY",
+           *       "minor_units": 0,
+           *       "created_at": "2026-11-02T10:01:12Z"
+           *     }
+           */
+          "application/json": components["schemas"]["Workspace"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      /** @description `session_required`: any API key, whatever its scopes. `invite_email_mismatch`: the session's email address is not the one the invite was sent to. It is checked before the invite's state. `account_not_provisioned`: a request without `invite_token` from a session with no open invite to its address and no workspace. */
+      403: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "type": "https://api.allisai.ai/errors/invite_email_mismatch",
+           *       "title": "The invite was sent to another email address",
+           *       "status": 403,
+           *       "detail": "This invite was sent to another email address. Sign in with the address the invite was sent to.",
+           *       "code": "invite_email_mismatch",
+           *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+           *     }
+           */
+          "application/problem+json": components["schemas"]["Problem"] & {
+            /** @enum {unknown} */
+            code?:
+              | "session_required"
+              | "invite_email_mismatch"
+              | "account_not_provisioned";
+          };
+        };
+      };
+      /** @description `invite_revoked`, `invite_used` or `invite_expired`: the invite is not open, checked in that order. `email_has_workspace`: the session's account or the invited address already belongs to a workspace. */
+      409: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "type": "https://api.allisai.ai/errors/invite_used",
+           *       "title": "The invite has been used",
+           *       "status": 409,
+           *       "detail": "This invite has already been used to create a workspace. Sign in instead.",
+           *       "code": "invite_used",
+           *       "request_id": "3a9f6c1e2b7d4e5f8a0b1c2d3e4f5a6b"
+           *     }
+           */
+          "application/problem+json": components["schemas"]["Problem"] & {
+            /** @enum {unknown} */
+            code?:
+              | "invite_revoked"
+              | "invite_used"
+              | "invite_expired"
+              | "email_has_workspace";
+          };
+        };
+      };
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      415: components["responses"]["UnsupportedMediaType"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  getOnboarding: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "steps": [
+           *         {
+           *           "step": "add_client",
+           *           "completed": true,
+           *           "skipped_at": null
+           *         },
+           *         {
+           *           "step": "add_agent",
+           *           "completed": false,
+           *           "skipped_at": "2026-11-02T10:05:00Z"
+           *         },
+           *         {
+           *           "step": "price_outcomes",
+           *           "completed": false,
+           *           "skipped_at": null
+           *         },
+           *         {
+           *           "step": "bring_in_data",
+           *           "completed": false,
+           *           "skipped_at": null
+           *         },
+           *         {
+           *           "step": "create_draft_calculation",
+           *           "completed": false,
+           *           "skipped_at": null
+           *         }
+           *       ],
+           *       "current_step": "price_outcomes",
+           *       "has_published": false
+           *     }
+           */
+          "application/json": components["schemas"]["Onboarding"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      429: components["responses"]["RateLimited"];
+      500: components["responses"]["InternalError"];
+    };
+  };
+  setOnboardingSkippedSteps: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        /**
+         * @example {
+         *       "steps": [
+         *         "add_agent"
+         *       ]
+         *     }
+         */
+        "application/json": components["schemas"]["OnboardingSkippedStepsSet"];
+      };
+    };
+    responses: {
+      /** @description OK. */
+      200: {
+        headers: {
+          "X-Request-Id": components["headers"]["X-Request-Id"];
+          RateLimit: components["headers"]["RateLimit"];
+          "RateLimit-Policy": components["headers"]["RateLimit-Policy"];
+          [name: string]: unknown;
+        };
+        content: {
+          /**
+           * @example {
+           *       "steps": [
+           *         {
+           *           "step": "add_client",
+           *           "completed": true,
+           *           "skipped_at": null
+           *         },
+           *         {
+           *           "step": "add_agent",
+           *           "completed": false,
+           *           "skipped_at": "2026-11-02T10:05:00Z"
+           *         },
+           *         {
+           *           "step": "price_outcomes",
+           *           "completed": false,
+           *           "skipped_at": null
+           *         },
+           *         {
+           *           "step": "bring_in_data",
+           *           "completed": false,
+           *           "skipped_at": null
+           *         },
+           *         {
+           *           "step": "create_draft_calculation",
+           *           "completed": false,
+           *           "skipped_at": null
+           *         }
+           *       ],
+           *       "current_step": "price_outcomes",
+           *       "has_published": false
+           *     }
+           */
+          "application/json": components["schemas"]["Onboarding"];
+        };
+      };
+      400: components["responses"]["BadRequest"];
+      401: components["responses"]["Unauthenticated"];
+      403: components["responses"]["ForbiddenKeyOrSession"];
+      413: components["responses"]["PayloadTooLarge"];
+      414: components["responses"]["UriTooLong"];
+      415: components["responses"]["UnsupportedMediaType"];
+      429: components["responses"]["RateLimited"];
       500: components["responses"]["InternalError"];
     };
   };

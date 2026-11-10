@@ -35,6 +35,14 @@ export class DashboardOperations {
    * whatever month `get` reads. Await the result for one page; iterate it
    * with `for await` for every client of every page.
    *
+   * `today` is the date renewal dates are rolled against and `window` is
+   * measured from; left out, it is the current UTC date, which the response
+   * echoes. A walk sends the first page's `today` on every later page, so it
+   * reads one date even across midnight UTC; to page by number instead,
+   * send that `today` yourself with each `page`. `renewal_term` takes an
+   * array, sent as one parameter per item; an empty array is refused
+   * before sending, because leaving it out means every term.
+   *
    * Needs the `read` scope. Operation `listRenewals`.
    */
   listRenewals(

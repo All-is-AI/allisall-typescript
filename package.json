@@ -1,6 +1,6 @@
 {
   "name": "@allisall/sdk",
-  "version": "0.2.0",
+  "version": "0.4.0",
   "description": "The allisall SDK for TypeScript and JavaScript: a typed client for the allisall API, from sending events to publishing reports.",
   "license": "Apache-2.0",
   "repository": {

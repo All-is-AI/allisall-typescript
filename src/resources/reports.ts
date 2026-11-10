@@ -7,11 +7,13 @@ import { call, callPage } from "../request.js";
 import type { TransportConfig } from "../transport.js";
 import type {
   ListCalculationReportsQuery,
+  ListReportsQuery,
   Report,
   ReportList,
   ReportPatch,
   ReportSummary,
   ReportWithPreview,
+  WorkspaceReportList,
 } from "../types.js";
 
 /** The `reports` operations. */
@@ -20,6 +22,27 @@ export class Reports {
 
   constructor(config: TransportConfig) {
     this.#config = config;
+  }
+
+  /**
+   * Lists the workspace's reports across calculations, newest first, each
+   * without its disclosures. Await the result for one page; iterate it with
+   * `for await` for every report of every page.
+   *
+   * Pass `page` for a numbered page: its `body` then holds `page` and
+   * `total`. Only that first page is counted; every later page of a walk
+   * continues by cursor from it, and its `page` and `total` are `null`. To
+   * show another numbered page, call this method again with its `page`
+   * rather than `getNextPage()`. A `page` past the end has no items, and the
+   * walk ends there.
+   *
+   * Needs the `read` scope. Operation `listReports`.
+   */
+  list(
+    query?: ListReportsQuery,
+    options?: RequestOptions,
+  ): PagePromise<ReportSummary, WorkspaceReportList> {
+    return callPage(this.#config, "listReports", { query, options });
   }
 
   /**

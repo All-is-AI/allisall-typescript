@@ -50,12 +50,18 @@ export const ERROR_CODES = [
   "report_shared",
   "report_not_shared",
   "api_key_revoked",
+  "invite_expired",
+  "invite_used",
+  "invite_revoked",
+  "invite_email_mismatch",
+  "email_has_workspace",
   "payload_too_large",
   "uri_too_long",
   "unsupported_media_type",
   "idempotency_key_reused",
   "rate_limited",
   "internal_error",
+  "upstream_failed",
 ] as const;
 
 /** The known field-level error codes, in the API's catalogue order. */
@@ -256,6 +262,10 @@ export type ClientStatus = Schemas["ClientStatus"];
 export type AgentStatus = Schemas["AgentStatus"];
 export type ValueModelStatus = Schemas["ValueModelStatus"];
 export type CalculationState = Schemas["CalculationState"];
+export type ReportState = Schemas["ReportState"];
+export type RenewalTerm = Schemas["RenewalTerm"];
+export type RenewalTermFilter = Schemas["RenewalTermFilter"];
+export type RenewalWindow = Schemas["RenewalWindow"];
 export type Scope = Schemas["Scope"];
 export type CostTargetKind = Schemas["CostTargetKind"];
 export type EventSource = Schemas["EventSource"];
@@ -313,6 +323,11 @@ export type RoiResult = Schemas["RoiResult"];
 export type Anomalies = Schemas["Anomalies"];
 export type AttributedEvent = Schemas["AttributedEvent"];
 export type ClientEventList = Schemas["ClientEventList"];
+export type EventList = Schemas["EventList"];
+export type EventSummary = Schemas["EventSummary"];
+export type EventDayCount = Schemas["EventDayCount"];
+export type EventCategoryCount = Schemas["EventCategoryCount"];
+export type EventArrivalList = Schemas["EventArrivalList"];
 export type Checklist = Schemas["Checklist"];
 export type ChecklistInput = Schemas["ChecklistInput"];
 export type CalculationSnapshot = Schemas["CalculationSnapshot"];
@@ -338,7 +353,12 @@ export type PreviewEvent = Schemas["PreviewEvent"];
 export type PreviewRow = Schemas["PreviewRow"];
 export type ImportPreview = Schemas["ImportPreview"];
 export type ImportResult = Schemas["ImportResult"];
+export type ImportSummary = Schemas["ImportSummary"];
+export type Import = Schemas["Import"];
+export type AppliedImportMapping = Schemas["AppliedImportMapping"];
+export type ImportDelimiter = Schemas["ImportDelimiter"];
 export type Health = Schemas["Health"];
+export type ImportList = Schemas["ImportList"];
 export type ClientList = Schemas["ClientList"];
 export type AgentList = Schemas["AgentList"];
 export type ValueModelList = Schemas["ValueModelList"];
@@ -347,13 +367,24 @@ export type ValueTemplateList = Schemas["ValueTemplateList"];
 export type CostLineItemList = Schemas["CostLineItemList"];
 export type CalculationList = Schemas["CalculationList"];
 export type ReportList = Schemas["ReportList"];
+export type WorkspaceCalculationList = Schemas["WorkspaceCalculationList"];
+export type WorkspaceReportList = Schemas["WorkspaceReportList"];
 export type RenewalList = Schemas["RenewalList"];
 export type ApiKeyList = Schemas["ApiKeyList"];
+export type Workspace = Schemas["Workspace"];
+export type OnboardingStep = Schemas["OnboardingStep"];
+export type OnboardingStepProgress = Schemas["OnboardingStepProgress"];
+export type Onboarding = Schemas["Onboarding"];
+export type OnboardingSkippedStepsSet = Schemas["OnboardingSkippedStepsSet"];
 
 // The query of each operation that takes one, named after the operation:
 // its operationId in PascalCase, followed by `Query`. An instant accepts a
 // `Date`, written as ISO text.
 
+export type ListEventsQuery = QueryOf<"listEvents">;
+export type GetEventSummaryQuery = QueryOf<"getEventSummary">;
+export type ListEventArrivalsQuery = QueryOf<"listEventArrivals">;
+export type ListImportsQuery = QueryOf<"listImports">;
 export type ListClientsQuery = QueryOf<"listClients">;
 export type ListClientOutcomeTypesQuery = QueryOf<"listClientOutcomeTypes">;
 export type GetClientValueQuery = QueryOf<"getClientValue">;
@@ -368,7 +399,9 @@ export type ListValueModelsQuery = QueryOf<"listValueModels">;
 export type ListOutcomeTypesQuery = QueryOf<"listOutcomeTypes">;
 export type ListValueTemplatesQuery = QueryOf<"listValueTemplates">;
 export type ListCostLineItemsQuery = QueryOf<"listCostLineItems">;
+export type ListCalculationsQuery = QueryOf<"listCalculations">;
 export type ListCalculationReportsQuery = QueryOf<"listCalculationReports">;
+export type ListReportsQuery = QueryOf<"listReports">;
 export type GetDashboardQuery = QueryOf<"getDashboard">;
 export type ListRenewalsQuery = QueryOf<"listRenewals">;
 export type ListApiKeysQuery = QueryOf<"listApiKeys">;

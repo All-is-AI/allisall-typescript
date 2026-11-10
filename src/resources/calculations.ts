@@ -11,7 +11,9 @@ import type {
   CalculationList,
   CalculationSummary,
   ChecklistInput,
+  ListCalculationsQuery,
   ListClientCalculationsQuery,
+  WorkspaceCalculationList,
 } from "../types.js";
 
 /** The `calculations` operations. */
@@ -20,6 +22,32 @@ export class Calculations {
 
   constructor(config: TransportConfig) {
     this.#config = config;
+  }
+
+  /**
+   * Lists the workspace's calculations across clients, without snapshots.
+   * Await the result for one page; iterate it with `for await` for every
+   * calculation of every page. `month` takes `YYYY-MM` and matches only a
+   * period that is exactly that calendar month in UTC.
+   *
+   * Calculations come latest period first, then newest first.
+   * `is_current` is decided among each client's own calculations for the
+   * period, before any filter or page applies.
+   *
+   * Pass `page` for a numbered page: its `body` then holds `page` and
+   * `total`. Only that first page is counted; every later page of a walk
+   * continues by cursor from it, and its `page` and `total` are `null`. To
+   * show another numbered page, call this method again with its `page`
+   * rather than `getNextPage()`. A `page` past the end has no items, and the
+   * walk ends there.
+   *
+   * Needs the `read` scope. Operation `listCalculations`.
+   */
+  list(
+    query?: ListCalculationsQuery,
+    options?: RequestOptions,
+  ): PagePromise<CalculationSummary, WorkspaceCalculationList> {
+    return callPage(this.#config, "listCalculations", { query, options });
   }
 
   /**
